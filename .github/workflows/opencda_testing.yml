@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-22.04   # 22.04 is supported by CARLA docs
     env:
       CARLA_VERSION: "0.9.14"
-      CARLA_URL: "https://tiny.carla.org/CARLA_0.9.14.tar.gz"
+      CARLA_URL: "https://tiny.carla.org/carla-0-9-14-linux"
       CARLA_ROOT: "${{ github.workspace }}/_carla"
       START_CARLA_SERVER: "false"   # set to "true" if you want to boot the server in CI
 

@@ -1,0 +1,19 @@
+# carla/config.yaml
+host: "127.0.0.1"
+port: 2000
+timeout: 20.0
+
+linux_launcher: "/opt/carla-simulator/CarlaUE4.sh"
+windows_launcher: "D:\\Carla\\CarlaUE4.exe"
+
+extra_args:
+  - "-opengl"
+  - "RenderOffScreen"
+
+boot_grace_seconds: 5.0
+connect_retry_seconds: 45.0
+kill_stale_on_launch: true
+
+workdir: null
+stdout_path: null
+stderr_path: null

@@ -1,0 +1,97 @@
+name: CARLA Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04   # 22.04 is supported by CARLA docs
+    env:
+      CARLA_VERSION: "0.9.14"
+      CARLA_URL: "https://tiny.carla.org/CARLA_0.9.14.tar.gz"
+      CARLA_ROOT: "${{ github.workspace }}/_carla"
+      START_CARLA_SERVER: "false"   # set to "true" if you want to boot the server in CI
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive   # or 'true' if you don't need nested submodules
+          fetch-depth: 0          # full history (needed for some tools/versioning)
+          # token: ${{ secrets.GH_TOKEN }}   # add if private submodules via HTTPS
+          # ssh-key: ${{ secrets.SUBMODULE_KEY }}  # or this if submodules use SSH
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          environment-file: environment.yml     # uses the name in the file
+          use-mamba: true
+          # optional: activate-environment: <actual-name-in-file>  # replace placeholder
+
+      - name: Show Python
+        shell: bash -l {0}
+        run: python -V
+
+      - name: Install Ubuntu libs CARLA needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libomp5 libvulkan1 mesa-vulkan-drivers libgl1 libglib2.0-0 ca-certificates \
+            xvfb
+          sudo apt-get clean
+
+      - name: Download CARLA ${{ env.CARLA_VERSION }}
+        run: |
+          mkdir -p "${CARLA_ROOT}"
+          curl -L "${CARLA_URL}" -o /tmp/CARLA_${CARLA_VERSION}.tar.gz
+          tar -xzf /tmp/CARLA_${CARLA_VERSION}.tar.gz -C "${CARLA_ROOT}" --strip-components=1
+          ls -lah "${CARLA_ROOT}"
+
+      - name: Install matching CARLA Python wheel from bundle
+        shell: bash -l {0}
+        run: |
+          WHL=$(ls "${CARLA_ROOT}"/PythonAPI/carla/dist/carla-${CARLA_VERSION}-*.whl | head -n1)
+          pip install --no-deps --no-cache-dir "$WHL"
+          python - <<'PY'
+          import carla, sys
+          print("carla module path:", carla.__file__)
+          print("python:", sys.version)
+          PY
+
+      - name: Verify CARLA server files exist
+        run: |
+          test -f "${CARLA_ROOT}/CarlaUE4.sh"
+          echo "Found CarlaUE4.sh at ${CARLA_ROOT}"
+
+      # OPTIONAL: boot server off-screen (slow on non-GPU runners)
+      - name: Start CARLA server (off-screen)
+        if: env.START_CARLA_SERVER == 'true'
+        shell: bash -l {0}
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          export SDL_VIDEODRIVER=offscreen
+          "${CARLA_ROOT}/CarlaUE4.sh" -RenderOffScreen -quality-level=Low -nosound -world-port=2000 > /tmp/carla.log 2>&1 &
+          SERVER_PID=$!
+      
+          echo "Waiting for server on port 2000 ..."
+          for i in {1..30}; do
+            (echo > /dev/tcp/127.0.0.1/2000) >/dev/null 2>&1 && break || sleep 2
+          done
+      
+          # Bail early with logs if port never opened
+          if ! (echo > /dev/tcp/127.0.0.1/2000) >/dev/null 2>&1; then
+            echo "CARLA failed to start; last 100 lines of log:"
+            tail -n 100 /tmp/carla.log || true
+            exit 1
+          fi
+      
+          python - <<'PY'
+          import carla
+          c = carla.Client("127.0.0.1", 2000)
+          c.set_timeout(10.0)
+          print("Connected to CARLA server. Version:", c.get_server_version())
+          PY
+      
+          kill "${SERVER_PID}" || true
+          wait "${SERVER_PID}" || true

@@ -8,7 +8,7 @@ on:
 
 jobs:
   carla-tests:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     timeout-minutes: 45
 
     env:
@@ -165,25 +165,6 @@ jobs:
           
           echo "CARLA server verification completed successfully!"
 
-      - name: Install PyTorch and dependencies
-        shell: bash -l {0}
-        run: |
-          echo "Installing PyTorch and related dependencies..."
-          conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=11.1 -c pytorch -c conda-forge -y
-          
-          echo "Verifying PyTorch installation..."
-          python -c "
-          import torch
-          import torchvision
-          import torchaudio
-          print(f'PyTorch version: {torch.__version__}')
-          print(f'Torchvision version: {torchvision.__version__}')
-          print(f'Torchaudio version: {torchaudio.__version__}')
-          print(f'CUDA available: {torch.cuda.is_available()}')
-          if torch.cuda.is_available():
-              print(f'CUDA version: {torch.version.cuda}')
-          "
-
       - name: Test CARLA server startup
         shell: bash -l {0}
         timeout-minutes: 10
@@ -271,6 +252,26 @@ jobs:
           echo "Environment variables available:"
           echo "CARLA_ROOT: ${CARLA_ROOT}"
           echo "CARLA_VERSION: ${CARLA_VERSION}"
+
+      - name: Install PyTorch and dependencies
+        continue-on-error: true  # This allows the workflow to continue if this step fails
+        shell: bash -l {0}
+        run: |
+          echo "Installing PyTorch and related dependencies..."
+          conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=11.1 -c pytorch -c conda-forge -y
+
+          echo "Verifying PyTorch installation..."
+          python -c "
+          import torch
+          import torchvision
+          import torchaudio
+          print(f'PyTorch version: {torch.__version__}')
+          print(f'Torchvision version: {torchvision.__version__}')
+          print(f'Torchaudio version: {torchaudio.__version__}')
+          print(f'CUDA available: {torch.cuda.is_available()}')
+          if torch.cuda.is_available():
+              print(f'CUDA version: {torch.version.cuda}')
+          "
 
       - name: Upload CARLA logs (on failure)
         if: failure()

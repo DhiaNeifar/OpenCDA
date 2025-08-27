@@ -1,10 +1,11 @@
 import argparse
+from typing import Tuple
 
 # Allowed CARLA version range
 MIN_VERSION = (0, 9, 11)
 MAX_VERSION = (0, 9, 15)
 
-def parse_version(value: str) -> tuple[int, ...]:
+def parse_version(value: str) -> Tuple[int, ...]:
     """Convert version string (e.g., '0.9.14') into a tuple of integers."""
     try:
         return tuple(map(int, value.split(".")))

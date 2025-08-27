@@ -6,27 +6,24 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04   # 22.04 is supported by CARLA docs
+    runs-on: ubuntu-22.04
     env:
       CARLA_VERSION: "0.9.14"
       CARLA_URL: "https://tiny.carla.org/carla-0-9-14-linux"
       CARLA_ROOT: "${{ github.workspace }}/_carla"
-      START_CARLA_SERVER: "false"   # set to "true" if you want to boot the server in CI
+      START_CARLA_SERVER: "false"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive   # or 'true' if you don't need nested submodules
-          fetch-depth: 0          # full history (needed for some tools/versioning)
-          # token: ${{ secrets.GH_TOKEN }}   # add if private submodules via HTTPS
-          # ssh-key: ${{ secrets.SUBMODULE_KEY }}  # or this if submodules use SSH
+          submodules: recursive
+          fetch-depth: 0
 
       - uses: conda-incubator/setup-miniconda@v3
         with:
-          environment-file: environment.yml     # uses the name in the file
+          environment-file: environment.yml
           use-mamba: true
-          # optional: activate-environment: <actual-name-in-file>  # replace placeholder
 
       - name: Show Python
         shell: bash -l {0}
@@ -44,13 +41,11 @@ jobs:
         run: |
           set -eux
           df -h .
-          # Big, usually unused SDKs/toolchains:
-          sudo rm -rf /usr/local/lib/android || true         # ~10–15 GB
-          sudo rm -rf /usr/share/dotnet || true              # ~1–2 GB
-          sudo rm -rf /opt/ghc || true                       # ~3–5 GB (Haskell)
-          sudo rm -rf /usr/local/.ghcup || true              # Haskell toolchain
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true    # ~2+ GB
-          # If you do NOT use actions/setup-python/node/java, you can prune more under /opt/hostedtoolcache/*
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           sudo apt-get clean
           docker system prune -af || true
           df -h .
@@ -62,11 +57,14 @@ jobs:
           tar -xzf /tmp/CARLA_${CARLA_VERSION}.tar.gz -C "${CARLA_ROOT}" --strip-components=1
           ls -lah "${CARLA_ROOT}"
 
-      - name: Install matching CARLA Python wheel from bundle
+      - name: Install CARLA client from PyPI (match server)
         shell: bash -l {0}
         run: |
-          WHL=$(ls "${CARLA_ROOT}"/PythonAPI/carla/dist/carla-${CARLA_VERSION}-*.whl | head -n1)
-          pip install --no-deps --no-cache-dir "$WHL"
+          python - <<'PY'
+          import sys
+          assert sys.version_info[:2] == (3,8), f"Need Python 3.8, got {sys.version}"
+          PY
+          pip install --no-cache-dir "carla==${CARLA_VERSION}"
           python - <<'PY'
           import carla, sys
           print("carla module path:", carla.__file__)
@@ -88,25 +86,24 @@ jobs:
           export SDL_VIDEODRIVER=offscreen
           "${CARLA_ROOT}/CarlaUE4.sh" -RenderOffScreen -quality-level=Low -nosound -world-port=2000 > /tmp/carla.log 2>&1 &
           SERVER_PID=$!
-      
+
           echo "Waiting for server on port 2000 ..."
           for i in {1..30}; do
             (echo > /dev/tcp/127.0.0.1/2000) >/dev/null 2>&1 && break || sleep 2
           done
-      
-          # Bail early with logs if port never opened
+
           if ! (echo > /dev/tcp/127.0.0.1/2000) >/dev/null 2>&1; then
             echo "CARLA failed to start; last 100 lines of log:"
             tail -n 100 /tmp/carla.log || true
             exit 1
           fi
-      
+
           python - <<'PY'
           import carla
           c = carla.Client("127.0.0.1", 2000)
           c.set_timeout(10.0)
           print("Connected to CARLA server. Version:", c.get_server_version())
           PY
-      
+
           kill "${SERVER_PID}" || true
           wait "${SERVER_PID}" || true

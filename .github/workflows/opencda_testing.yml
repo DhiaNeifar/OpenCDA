@@ -40,6 +40,21 @@ jobs:
             xvfb
           sudo apt-get clean
 
+      - name: Free up disk space
+        run: |
+          set -eux
+          df -h .
+          # Big, usually unused SDKs/toolchains:
+          sudo rm -rf /usr/local/lib/android || true         # ~10–15 GB
+          sudo rm -rf /usr/share/dotnet || true              # ~1–2 GB
+          sudo rm -rf /opt/ghc || true                       # ~3–5 GB (Haskell)
+          sudo rm -rf /usr/local/.ghcup || true              # Haskell toolchain
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true    # ~2+ GB
+          # If you do NOT use actions/setup-python/node/java, you can prune more under /opt/hostedtoolcache/*
+          sudo apt-get clean
+          docker system prune -af || true
+          df -h .
+
       - name: Download CARLA ${{ env.CARLA_VERSION }}
         run: |
           mkdir -p "${CARLA_ROOT}"

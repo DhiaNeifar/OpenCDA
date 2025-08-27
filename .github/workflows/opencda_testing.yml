@@ -2,9 +2,9 @@ name: CARLA Integration Tests
 
 on:
   push:
-    branches: [ main, bump-0.2.0 ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ main, bump-0.2.0 ]
+    branches: [ main, develop ]
 
 jobs:
   carla-tests:
@@ -100,27 +100,24 @@ jobs:
           echo "Creating CARLA directory at ${CARLA_ROOT}"
           mkdir -p "${CARLA_ROOT}"
           
-          echo "Downloading CARLA ${CARLA_VERSION}..."
-          # Try primary URL first
-          if ! wget -q --timeout=30 --tries=3 "${CARLA_DOWNLOAD_URL}" -O /tmp/CARLA_${CARLA_VERSION}.tar.gz; then
-            echo "Primary download failed, trying alternative URL..."
-            # Alternative download URLs
-            ALTERNATIVE_URL="https://github.com/carla-simulator/carla/releases/download/${CARLA_VERSION}/CARLA_${CARLA_VERSION}.tar.gz"
-            if ! wget -q --timeout=30 --tries=3 "${ALTERNATIVE_URL}" -O /tmp/CARLA_${CARLA_VERSION}.tar.gz; then
-              echo "Alternative download failed, trying direct GitHub release..."
-              GITHUB_URL="https://github.com/carla-simulator/carla/releases/download/${CARLA_VERSION}/CARLA_${CARLA_VERSION}_Linux.tar.gz"
-              wget --timeout=30 --tries=3 "${GITHUB_URL}" -O /tmp/CARLA_${CARLA_VERSION}.tar.gz
-            fi
-          fi
+          echo "Downloading CARLA ${CARLA_VERSION} from ${CARLA_DOWNLOAD_URL}..."
+          wget --progress=dot:giga --timeout=60 --tries=3 "${CARLA_DOWNLOAD_URL}" -O /tmp/CARLA_${CARLA_VERSION}.tar.gz
+          
+          echo "Verifying downloaded file..."
+          file /tmp/CARLA_${CARLA_VERSION}.tar.gz
+          ls -lh /tmp/CARLA_${CARLA_VERSION}.tar.gz
           
           echo "Extracting CARLA archive..."
-          tar -xzf /tmp/CARLA_${CARLA_VERSION}.tar.gz -C "${CARLA_ROOT}" --strip-components=1
+          tar -xzf /tmp/CARLA_${CARLA_VERSION}.tar.gz -C "${CARLA_ROOT}"
           
           # Clean up the downloaded archive to save space
           rm -f /tmp/CARLA_${CARLA_VERSION}.tar.gz
           
-          echo "CARLA extraction completed. Contents:"
+          echo "CARLA extraction completed. Contents of ${CARLA_ROOT}:"
           ls -lah "${CARLA_ROOT}"
+          
+          echo "Looking for CarlaUE4.sh specifically:"
+          find "${CARLA_ROOT}" -name "CarlaUE4.sh" -type f
 
       - name: Install CARLA Python client
         shell: bash -l {0}

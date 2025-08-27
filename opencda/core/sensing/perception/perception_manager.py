@@ -54,11 +54,19 @@ class CameraSensor:
 
     """
 
-    def __init__(self, vehicle, world, relative_position, global_position):
+    def __init__(self, vehicle, world, relative_position, global_position, image_size=(512, 512)):
+
+        # image_size parameter has been added by Dhia Neifar.
+        # The user can choose the image dimensions and Carla handles the rest.
+        # When displaying the RGB images, we resize it to be a small box.
+        # This can be removed if all lines <rgb_image = cv2.resize(rgb_image, (0, 0), fx=0.4, fy=0.4)> are commented.
+
         if vehicle is not None:
             world = vehicle.get_world()
 
         blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
+        blueprint.set_attribute('image_size_x', str(image_size[0]))
+        blueprint.set_attribute('image_size_y', str(image_size[1]))
         blueprint.set_attribute('fov', '100')
 
         spawn_point = self.spawn_point_estimation(relative_position,

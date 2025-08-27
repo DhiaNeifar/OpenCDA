@@ -141,12 +141,16 @@ cython_debug/
 *.csv
 output/
 outputs
-*.pt
-opencda/evaluation_figures/
 *.save
 *cache*
-evaluation_outputs/
 docs/tmp.py
 video_dumping
 *data_dumping*
 ready*
+
+# ignore ML model weights, especially yolov5
+*.pt
+
+# ignore simulation data saved
+opencda/evaluation_figures/
+evaluation_outputs/

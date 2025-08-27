@@ -168,7 +168,7 @@ class EvaluationManager(object):
         """
         vm = self.cav_world.get_ego_vehicle_manager()
         planned_route = vm.agent.initial_global_route
-        real_route = vm.v2x_manager.ego_dynamic_trace  # return in (ego_pos, ego_speed, world_tik)
+        real_route = vm.v2x_manager.ego_dynamic_trace  # return in (ego_pos, ego_speed, world_tick)
         planned_dist = self.calculate_route_dist(planned_route)
         real_dist = self.calculate_route_dist(real_route)
         print("***********Planning Evaluation Module***********")
@@ -179,36 +179,52 @@ class EvaluationManager(object):
         print(f"Calculated success threshold (with 10km/h or 2.77m/s): {planned_dist / 2.77778}")
         print("Success or not: ", "Yes" if self.cav_world.global_clock * self.fixed_delta_seconds < planned_dist / 2.77778 else "No")
         timestamps = list(map(lambda e: e[2], real_route))
-        imu_data = vm.safety_manager.imu_sensor.imu_data
-        safety_data = vm.safety_manager.status_queue
+        velocity = list(map(lambda e: e[1], real_route))
+
+        imu_data = list(vm.safety_manager.imu_sensor.imu_data)
+        safety_data = list(vm.safety_manager.status_queue)
+
+        # --- FIX: align all series by trimming from the front so their ends match ---
+        min_len = min(len(timestamps), len(velocity), len(imu_data), len(safety_data))
+        timestamps = timestamps[-min_len:]
+        velocity = velocity[-min_len:]
+        imu_data = imu_data[-min_len:]
+        safety_data = safety_data[-min_len:]
+
+        # apply skip after alignment
+        timestamps = timestamps[self.skip_head:]
+        velocity = velocity[self.skip_head:]
+        imu_data = imu_data[self.skip_head:]
+        safety_data = safety_data[self.skip_head:]
+
         self.plot_2d(
-            timestamps[self.skip_head:],
-            list(map(lambda e: e[1], real_route))[self.skip_head:],
+            timestamps,
+            velocity,
             'velocity',
             'timestamp',
             'velocity',
             'velocity to timestamp plot'
         )
         self.plot_3d(
-            timestamps[self.skip_head:],
-            list(map(lambda e: e[0].x, imu_data))[self.skip_head:],
-            list(map(lambda e: e[0].y, imu_data))[self.skip_head:],
-            list(map(lambda e: e[0].z, imu_data))[self.skip_head:],  # z must subtracts gravity const.
-            list(map(lambda e: e[2], imu_data))[self.skip_head:], # signed magnitude
-            list(map(lambda e: e[1].x, imu_data))[self.skip_head:],
-            list(map(lambda e: e[1].y, imu_data))[self.skip_head:],
-            list(map(lambda e: e[1].z, imu_data))[self.skip_head:],
-            list(map(lambda e: math.sqrt(e[1].x * e[1].x + e[1].y * e[1].y + e[1].z * e[1].z), imu_data))[self.skip_head:],
+            timestamps,
+            list(map(lambda e: e[0].x, imu_data)),
+            list(map(lambda e: e[0].y, imu_data)),
+            list(map(lambda e: e[0].z, imu_data)),  # z must subtracts gravity const.
+            list(map(lambda e: e[2], imu_data)), # signed magnitude
+            list(map(lambda e: e[1].x, imu_data)),
+            list(map(lambda e: e[1].y, imu_data)),
+            list(map(lambda e: e[1].z, imu_data)),
+            list(map(lambda e: math.sqrt(e[1].x * e[1].x + e[1].y * e[1].y + e[1].z * e[1].z), imu_data)),
         )
         self.plot_hazard_condition(
-            list(map(lambda e: e[0], safety_data))[self.skip_head:],
-            list(map(lambda e: int(e[1]['collision']), safety_data))[self.skip_head:],
-            list(map(lambda e: int(e[1]['offroad']), safety_data))[self.skip_head:],
-            list(map(lambda e: int(e[1]['stuck']), safety_data))[self.skip_head:],
-            list(map(lambda e: int(e[1]['ran_light']), safety_data))[self.skip_head:]
+            list(map(lambda e: e[0], safety_data)),
+            list(map(lambda e: int(e[1]['collision']), safety_data)),
+            list(map(lambda e: int(e[1]['offroad']), safety_data)),
+            list(map(lambda e: int(e[1]['stuck']), safety_data)),
+            list(map(lambda e: int(e[1]['ran_light']), safety_data))
         )
         self.plot_routes(
-            list(map(lambda e: e[0], real_route))[self.skip_head:],
+            list(map(lambda e: e[0], real_route)),
             list(map(lambda e: e[0].transform, planned_route)),
         )
 

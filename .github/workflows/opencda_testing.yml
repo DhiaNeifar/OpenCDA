@@ -1,109 +1,269 @@
-name: CARLA Tests
+name: CARLA Integration Tests
 
 on:
   push:
+    branches: [ main, develop ]
   pull_request:
+    branches: [ main, develop ]
 
 jobs:
-  test:
+  carla-tests:
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
     env:
       CARLA_VERSION: "0.9.14"
-      CARLA_URL: "https://tiny.carla.org/carla-0-9-14-linux"
+      CARLA_DOWNLOAD_URL: "https://carla-releases.s3.eu-west-3.amazonaws.com/Linux/CARLA_0.9.14.tar.gz"
       CARLA_ROOT: "${{ github.workspace }}/_carla"
       START_CARLA_SERVER: "false"
+      DISPLAY: ":99"
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - uses: conda-incubator/setup-miniconda@v3
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
         with:
           environment-file: environment.yml
           use-mamba: true
+          activate-environment: opencda
+          auto-activate-base: false
 
-      - name: Show Python
+      - name: Verify Python version
         shell: bash -l {0}
-        run: python -V
-
-      - name: Install Ubuntu libs CARLA needs
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libomp5 libvulkan1 mesa-vulkan-drivers libgl1 libglib2.0-0 ca-certificates \
-            xvfb
-          sudo apt-get clean
+          python --version
+          which python
+          conda info --envs
 
       - name: Free up disk space
         run: |
-          set -eux
-          df -h .
+          echo "=== Initial disk usage ==="
+          df -h
+          
+          # Remove unnecessary packages to free up space
           sudo rm -rf /usr/local/lib/android || true
           sudo rm -rf /usr/share/dotnet || true
           sudo rm -rf /opt/ghc || true
           sudo rm -rf /usr/local/.ghcup || true
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
+          
+          # Clean package cache
+          sudo apt-get autoremove -y
+          sudo apt-get autoclean
           sudo apt-get clean
+          
+          # Clean docker if present
           docker system prune -af || true
-          df -h .
+          
+          echo "=== Disk usage after cleanup ==="
+          df -h
 
-      - name: Download CARLA ${{ env.CARLA_VERSION }}
+      - name: Install system dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libomp5 \
+            libvulkan1 \
+            mesa-vulkan-drivers \
+            libgl1-mesa-glx \
+            libglib2.0-0 \
+            libsm6 \
+            libxext6 \
+            libxrender-dev \
+            libfontconfig1 \
+            libxrandr2 \
+            libegl1-mesa \
+            xvfb \
+            ca-certificates \
+            wget \
+            curl
+          
+          # Clean up apt cache
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Set up virtual display
+        run: |
+          # Start Xvfb for headless operation
+          sudo /usr/bin/Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          sleep 3
+
+      - name: Download and extract CARLA
+        run: |
+          echo "Creating CARLA directory at ${CARLA_ROOT}"
           mkdir -p "${CARLA_ROOT}"
-          curl -L "${CARLA_URL}" -o /tmp/CARLA_${CARLA_VERSION}.tar.gz
+          
+          echo "Downloading CARLA ${CARLA_VERSION}..."
+          # Try primary URL first
+          if ! wget -q --timeout=30 --tries=3 "${CARLA_DOWNLOAD_URL}" -O /tmp/CARLA_${CARLA_VERSION}.tar.gz; then
+            echo "Primary download failed, trying alternative URL..."
+            # Alternative download URLs
+            ALTERNATIVE_URL="https://github.com/carla-simulator/carla/releases/download/${CARLA_VERSION}/CARLA_${CARLA_VERSION}.tar.gz"
+            if ! wget -q --timeout=30 --tries=3 "${ALTERNATIVE_URL}" -O /tmp/CARLA_${CARLA_VERSION}.tar.gz; then
+              echo "Alternative download failed, trying direct GitHub release..."
+              GITHUB_URL="https://github.com/carla-simulator/carla/releases/download/${CARLA_VERSION}/CARLA_${CARLA_VERSION}_Linux.tar.gz"
+              wget --timeout=30 --tries=3 "${GITHUB_URL}" -O /tmp/CARLA_${CARLA_VERSION}.tar.gz
+            fi
+          fi
+          
+          echo "Extracting CARLA archive..."
           tar -xzf /tmp/CARLA_${CARLA_VERSION}.tar.gz -C "${CARLA_ROOT}" --strip-components=1
+          
+          # Clean up the downloaded archive to save space
+          rm -f /tmp/CARLA_${CARLA_VERSION}.tar.gz
+          
+          echo "CARLA extraction completed. Contents:"
           ls -lah "${CARLA_ROOT}"
 
-      - name: Install CARLA client from PyPI (match server)
+      - name: Install CARLA Python client
         shell: bash -l {0}
         run: |
-          python - <<'PY'
+          echo "Verifying Python version..."
+          python -c "import sys; print(f'Python version: {sys.version}')"
+          python -c "import sys; assert sys.version_info[:2] == (3,8), f'Expected Python 3.8, got {sys.version_info[:2]}'"
+          
+          echo "Installing CARLA Python package..."
+          pip install --no-cache-dir carla==${CARLA_VERSION}
+          
+          echo "Verifying CARLA installation..."
+          python -c "
+          import carla
           import sys
-          assert sys.version_info[:2] == (3,8), f"Need Python 3.8, got {sys.version}"
-          PY
-          pip install --no-cache-dir "carla==${CARLA_VERSION}"
-          python - <<'PY'
-          import carla, sys
-          print("carla module path:", carla.__file__)
-          print("python:", sys.version)
-          PY
+          print(f'CARLA module location: {carla.__file__}')
+          print(f'Python executable: {sys.executable}')
+          print('CARLA client installation verified successfully!')
+          "
 
-      - name: Verify CARLA server files exist
+      - name: Verify CARLA server installation
         run: |
-          test -f "${CARLA_ROOT}/CarlaUE4.sh"
-          echo "Found CarlaUE4.sh at ${CARLA_ROOT}"
-
-      # OPTIONAL: boot server off-screen (slow on non-GPU runners)
-      - name: Start CARLA server (off-screen)
-        if: env.START_CARLA_SERVER == 'true'
-        shell: bash -l {0}
-        timeout-minutes: 5
-        run: |
-          set -euo pipefail
-          export SDL_VIDEODRIVER=offscreen
-          "${CARLA_ROOT}/CarlaUE4.sh" -RenderOffScreen -quality-level=Low -nosound -world-port=2000 > /tmp/carla.log 2>&1 &
-          SERVER_PID=$!
-
-          echo "Waiting for server on port 2000 ..."
-          for i in {1..30}; do
-            (echo > /dev/tcp/127.0.0.1/2000) >/dev/null 2>&1 && break || sleep 2
-          done
-
-          if ! (echo > /dev/tcp/127.0.0.1/2000) >/dev/null 2>&1; then
-            echo "CARLA failed to start; last 100 lines of log:"
-            tail -n 100 /tmp/carla.log || true
+          echo "Verifying CARLA server files..."
+          
+          # Check for main executable
+          if [ -f "${CARLA_ROOT}/CarlaUE4.sh" ]; then
+            echo "✓ Found CarlaUE4.sh at ${CARLA_ROOT}/CarlaUE4.sh"
+          else
+            echo "✗ CarlaUE4.sh not found. Directory contents:"
+            find "${CARLA_ROOT}" -name "*Carla*" -o -name "*.sh" | head -20
             exit 1
           fi
+          
+          # Make executable if not already
+          chmod +x "${CARLA_ROOT}/CarlaUE4.sh"
+          
+          # Check for other essential files
+          if [ -d "${CARLA_ROOT}/CarlaUE4" ]; then
+            echo "✓ Found CarlaUE4 directory"
+          else
+            echo "✗ CarlaUE4 directory not found"
+            ls -la "${CARLA_ROOT}/"
+            exit 1
+          fi
+          
+          echo "CARLA server verification completed successfully!"
 
-          python - <<'PY'
-          import carla
-          c = carla.Client("127.0.0.1", 2000)
-          c.set_timeout(10.0)
-          print("Connected to CARLA server. Version:", c.get_server_version())
-          PY
+      - name: Test CARLA server startup (optional)
+        if: env.START_CARLA_SERVER == 'true'
+        shell: bash -l {0}
+        timeout-minutes: 10
+        run: |
+          echo "Starting CARLA server in headless mode..."
+          
+          # Set environment variables for headless operation
+          export SDL_VIDEODRIVER=offscreen
+          export UE4_PROJECT_ROOT="${CARLA_ROOT}"
+          
+          # Start CARLA server
+          "${CARLA_ROOT}/CarlaUE4.sh" \
+            -RenderOffScreen \
+            -carla-server \
+            -world-port=2000 \
+            -quality-level=Low \
+            -nosound \
+            -benchmark \
+            -fps=10 > /tmp/carla_server.log 2>&1 &
+          
+          SERVER_PID=$!
+          echo "CARLA server started with PID: ${SERVER_PID}"
+          
+          # Wait for server to be ready
+          echo "Waiting for CARLA server to start..."
+          timeout=60
+          counter=0
+          
+          while [ $counter -lt $timeout ]; do
+            if (echo > /dev/tcp/127.0.0.1/2000) >/dev/null 2>&1; then
+              echo "✓ CARLA server is ready!"
+              break
+            fi
+            echo "Waiting... ($((counter + 1))/${timeout})"
+            sleep 2
+            counter=$((counter + 1))
+          done
+          
+          # Test connection
+          if (echo > /dev/tcp/127.0.0.1/2000) >/dev/null 2>&1; then
+            echo "Testing CARLA client connection..."
+            python -c "
+            import carla
+            import time
+            
+            try:
+                client = carla.Client('127.0.0.1', 2000)
+                client.set_timeout(20.0)
+                
+                world = client.get_world()
+                print(f'✓ Connected to CARLA server successfully!')
+                print(f'Server version: {client.get_server_version()}')
+                print(f'World: {world.get_map().name}')
+                
+                # Basic functionality test
+                blueprint_library = world.get_blueprint_library()
+                print(f'Available blueprints: {len(blueprint_library)}')
+                
+            except Exception as e:
+                print(f'✗ Connection test failed: {e}')
+                raise
+            "
+          else
+            echo "✗ CARLA server failed to start properly"
+            echo "Server log (last 50 lines):"
+            tail -n 50 /tmp/carla_server.log || echo "No log file found"
+            exit 1
+          fi
+          
+          # Clean up
+          echo "Stopping CARLA server..."
+          kill "${SERVER_PID}" 2>/dev/null || true
+          wait "${SERVER_PID}" 2>/dev/null || true
+          echo "CARLA server test completed successfully!"
 
-          kill "${SERVER_PID}" || true
-          wait "${SERVER_PID}" || true
+      - name: Run your tests here
+        shell: bash -l {0}
+        run: |
+          echo "CARLA setup completed successfully!"
+          echo "Add your actual test commands here"
+          
+          # Example test commands:
+          # python -m pytest tests/
+          # python your_test_script.py
+          
+          echo "Environment variables available:"
+          echo "CARLA_ROOT: ${CARLA_ROOT}"
+          echo "CARLA_VERSION: ${CARLA_VERSION}"
+
+      - name: Upload CARLA logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: carla-logs
+          path: |
+            /tmp/carla_server.log
+            /tmp/carla.log
+          retention-days: 7

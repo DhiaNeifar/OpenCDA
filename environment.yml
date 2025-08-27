@@ -17,5 +17,6 @@ dependencies:
   - lxml
   - shapely=1.8.4
   - pip
+  - pytest
   - pip:
       - open3d

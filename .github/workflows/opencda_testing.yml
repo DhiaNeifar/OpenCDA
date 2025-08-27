@@ -13,7 +13,7 @@ jobs:
 
     env:
       CARLA_VERSION: "0.9.14"
-      CARLA_DOWNLOAD_URL: "https://carla-releases.s3.eu-west-3.amazonaws.com/Linux/CARLA_0.9.14.tar.gz"
+      CARLA_DOWNLOAD_URL: "https://tiny.carla.org/carla-0-9-14-linux"
       CARLA_ROOT: "${{ github.workspace }}/_carla"
       START_CARLA_SERVER: "false"
       DISPLAY: ":99"

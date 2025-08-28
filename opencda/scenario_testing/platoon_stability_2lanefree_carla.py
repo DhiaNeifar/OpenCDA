@@ -158,11 +158,11 @@ def run_scenario(opt, scenario_params):
                             leader_speed_profile[0]
 
     finally:
-        eval_manager.evaluate()
 
         if opt.record:
             scenario_manager.client.stop_recorder()
 
+        scenario_manager.destroyActors()
         scenario_manager.close()
 
         for platoon in platoon_list:
@@ -170,3 +170,6 @@ def run_scenario(opt, scenario_params):
 
         for v in bg_veh_list:
             v.destroy()
+
+        eval_manager.evaluate()
+

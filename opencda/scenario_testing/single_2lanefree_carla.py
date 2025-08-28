@@ -74,14 +74,16 @@ def run_scenario(opt, scenario_params):
                 single_cav.vehicle.apply_control(control)
 
     finally:
-        eval_manager.evaluate()
 
         if opt.record:
             scenario_manager.client.stop_recorder()
 
+        scenario_manager.destroyActors()
         scenario_manager.close()
 
         for v in single_cav_list:
             v.destroy()
         for v in bg_veh_list:
             v.destroy()
+
+        eval_manager.evaluate()

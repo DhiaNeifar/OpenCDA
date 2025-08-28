@@ -747,7 +747,10 @@ class ScenarioManager:
 
         actor_list = self.world.get_actors()
         for actor in actor_list:
-            actor.destroy()
+
+            if actor.is_alive and actor.type_id != "spectator":
+                actor.destroy()
+                print(f"{actor.type_id} is destroyed!")
 
     def close(self):
         """

@@ -596,7 +596,7 @@ class PerceptionManager:
                         v.id != self.id]
 
         # use semantic lidar to filter out vehicles out of the range
-        if self.data_dump:
+        if self.data_dump and self.semantic_lidar:
             vehicle_list = self.filter_vehicle_out_sensor(vehicle_list)
 
         # convert carla.Vehicle to opencda.ObstacleVehicle if lidar
@@ -680,6 +680,9 @@ class PerceptionManager:
             The list that filters out the out-of-scope vehicles.
 
         """
+        while self.semantic_lidar.obj_tag is None:
+            print("Semantic Lidar Collecting Data. Sleeping...", end="\r")
+            time.sleep(1)
         semantic_idx = self.semantic_lidar.obj_idx
         semantic_tag = self.semantic_lidar.obj_tag
 

@@ -33,7 +33,7 @@ class V2XManager(object):
 
     Attributes
     ----------
-    _recieved_buffer : dict
+    _received_buffer : dict
         A buffer for receive data.
 
     cav_nearby : dict
@@ -59,7 +59,7 @@ class V2XManager(object):
         self.cav_nearby = {}
 
         # used for cooperative perception.
-        self._recieved_buffer = {}
+        self._received_buffer = {}
 
         # used for platooning communication
         self.platooning_plugin = PlatooningPlugin(
@@ -238,7 +238,7 @@ class V2XManager(object):
         vm : opencda object
             The target vehicle manager.
         """
-        self.platooning_plugin.rear_vechile = vm
+        self.platooning_plugin.rear_vehicle = vm
 
     def add_platoon_blacklist(self, pmid):
         """
@@ -308,4 +308,4 @@ class V2XManager(object):
             Rear vehicle of the ego vehicle in the platoon.
         """
         return self.platooning_plugin.front_vehicle, \
-               self.platooning_plugin.rear_vechile
+               self.platooning_plugin.rear_vehicle

@@ -128,7 +128,7 @@ def multi_class_vehicle_blueprint_filter(label, blueprint_library, bp_meta):
 
 class ScenarioManager:
     """
-    The manager that controls simulation construction, backgound traffic
+    The manager that controls simulation construction, background traffic
     generation and CAVs spawning.
 
     Parameters
@@ -574,6 +574,7 @@ class ScenarioManager:
                     ego_vehicle_bp.set_attribute('color', color)
 
             vehicle = self.world.spawn_actor(ego_vehicle_bp, spawn_transform)
+            print("vehicle set to autopilot")
             vehicle.set_autopilot(True, 8000)
 
             if 'vehicle_speed_perc' in vehicle_config:
@@ -743,7 +744,7 @@ class ScenarioManager:
         """
         self.world.tick()
 
-    def destroyActors(self):
+    def destroy_actors(self):
         """
         Destroy only vehicles, pedestrians, and sensors.
         """

@@ -1,7 +1,7 @@
 # carla/config.yaml
 host: "127.0.0.1"
 port: 2000
-timeout: 10.0
+timeout: 60.0
 
 linux_launcher: "/opt/carla-simulator/CarlaUE4.sh"
 windows_launcher: "D:\\Carla\\CarlaUE4.exe"

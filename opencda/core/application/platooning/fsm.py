@@ -25,7 +25,7 @@ class FSM(Enum):
         The merging vehicle is moving to the meeting points for joining.
     JOINING : int
         The merging vehicle is operating the joining maneuver(lane change).
-    MAINTINING : int
+    MAINTAINING : int
         The platoon member is following the leader and maintain the time gap.
     BACK_JOINING : int
         The merging vehicle is in back-join state.
@@ -36,7 +36,7 @@ class FSM(Enum):
         vehicle will switch to maintaining state.
     LEADING_MODE : int
         The vehicle is the platoon leader.
-    ABONDON:
+    ABANDON:
         Current joining is abandoned.
     DISABLE:
         V2X is not available and thus won't join any platoon.
@@ -45,11 +45,11 @@ class FSM(Enum):
     OPEN_GAP = 1
     MOVE_TO_POINT = 2
     JOINING = 3
-    MAINTINING = 4
+    MAINTAINING = 4
     BACK_JOINING = 5
     CUT_IN_TO_BACK = 6
     FRONT_JOINING = 7
     JOINING_FINISHED = 8
     LEADING_MODE = 9
-    ABONDON = 10
+    ABANDON = 10
     DISABLE = 11

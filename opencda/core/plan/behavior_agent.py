@@ -173,7 +173,7 @@ class BehaviorAgent(object):
         self.get_local_planner().update_information(ego_pos, ego_speed)
 
         self.objects = objects
-        # current version only consider about vehicles
+        # current version only considers vehicles
         obstacle_vehicles = objects['vehicles']
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
 
@@ -188,7 +188,7 @@ class BehaviorAgent(object):
 
     def add_white_list(self, vm):
         """
-        Add vehicle manager to white list.
+        Add vehicle manager to whitelist.
         """
         self.white_list.append(vm)
 
@@ -366,7 +366,7 @@ class BehaviorAgent(object):
         WARNING: What follows is a proxy to avoid having a car brake after
         running a yellow light. This happens because the car is still under
         the influence of the semaphore, even after passing it.
-        So, the semaphore id is temporarely saved to ignore it and go around
+        So, the semaphore id is temporarily saved to ignore it and go around
         this issue, until the car is near a new one.
 
         Parameters
@@ -390,7 +390,7 @@ class BehaviorAgent(object):
             # when light state is red and light id is -1, it means the vehicle
             # is near a stop sign.
             if light_id == -1:
-                # we force the vehicle wait for 2 sceconds in front of the
+                # we force the vehicle wait for 2 seconds in front of the
                 # stop sign
                 if self.stop_sign_wait_count < 60:
                     self.stop_sign_wait_count += 1

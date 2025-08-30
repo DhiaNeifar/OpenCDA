@@ -64,7 +64,7 @@ def run_scenario(opt, scenario_params):
         if opt.record:
             scenario_manager.client.stop_recorder()
 
-        scenario_manager.destroyActors()
+        scenario_manager.destroy_actors()
         scenario_manager.close()
 
 

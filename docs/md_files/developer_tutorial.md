@@ -504,7 +504,7 @@ class V2XManager(object):
         self.cav_nearby = {}
 
         # used for cooperative perception.
-        self._recieved_buffer = {}
+        self._received_buffer = {}
 
         # used for platooning communication
         self.platooning_plugin = PlatooningPlugin(

@@ -53,7 +53,7 @@ class PlatooningPlugin(object):
     front_vehicle : opencda object
         The front vehicle manager of the ego vehicle.
 
-    rear_vechile : opencda object
+    rear_vehicle : opencda object
         The rear vehicle manager of the ego vehicle.
     """
 
@@ -78,7 +78,7 @@ class PlatooningPlugin(object):
 
         # used to label the front and rear vehicle position
         self.front_vehicle = None
-        self.rear_vechile = None
+        self.rear_vehicle = None
 
     def update_info(self, ego_pos, ego_spd):
         """
@@ -100,7 +100,7 @@ class PlatooningPlugin(object):
         Reset to the origin status.
         """
         self.front_vehicle = None
-        self.rear_vechile = None
+        self.rear_vehicle = None
 
         self.leader = False
         self.platooning_object = None
@@ -150,7 +150,7 @@ class PlatooningPlugin(object):
             self.leader = leader
             self.set_status(FSM.LEADING_MODE)
         else:
-            self.set_status(FSM.MAINTINING)
+            self.set_status(FSM.MAINTAINING)
 
     def set_status(self, status):
         """
@@ -260,12 +260,12 @@ class PlatooningPlugin(object):
         # if the ego is in front of the platooning
         if min_index == 0 and min_angle > 90:
             self.front_vehicle = None
-            self.rear_vechile = pm.vehicle_manager_list[0]
+            self.rear_vehicle = pm.vehicle_manager_list[0]
             return True, min_index, platoon_vehicle_list
 
         self.front_vehicle = pm.vehicle_manager_list[min_index]
 
         if min_index < len(pm.vehicle_manager_list) - 1:
-            self.rear_vechile = pm.vehicle_manager_list[min_index + 1]
+            self.rear_vehicle = pm.vehicle_manager_list[min_index + 1]
 
         return True, min_index, platoon_vehicle_list

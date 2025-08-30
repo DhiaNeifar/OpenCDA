@@ -100,14 +100,15 @@ class DataDumper(object):
         if self.count % 2 != 0:
             return
 
-        self.save_rgb_image(self.count)
-        # self.save_lidar_points()
+        if self.rgb_camera:
+            self.save_rgb_image()
+        if self.lidar:
+            self.save_lidar_points()
         self.save_yaml_file(perception_manager,
                             localization_manager,
-                            behavior_agent,
-                            self.count)
+                            behavior_agent)
 
-    def save_rgb_image(self, count):
+    def save_rgb_image(self):
         """
         Save camera rgb images to disk.
         """
@@ -116,7 +117,7 @@ class DataDumper(object):
             frame = camera.frame
             image = camera.image
 
-            image_name = '%06d' % count + '_' + 'camera%d' % i + '.png'
+            image_name = '%06d' % self.count + '_' + 'camera%d' % i + '.png'
 
             cv2.imwrite(os.path.join(self.save_parent_folder, image_name),
                         image)
@@ -126,7 +127,6 @@ class DataDumper(object):
         Save 3D lidar points to disk.
         """
         point_cloud = self.lidar.data
-        frame = self.lidar.frame
 
         point_xyz = point_cloud[:, :-1]
         point_intensity = point_cloud[:, -1]
@@ -141,7 +141,7 @@ class DataDumper(object):
         o3d_pcd.colors = o3d.utility.Vector3dVector(point_intensity)
 
         # write to pcd file
-        pcd_name = '%06d' % frame + '.pcd'
+        pcd_name = '%06d' % self.count + '.pcd'
         o3d.io.write_point_cloud(os.path.join(self.save_parent_folder,
                                               pcd_name),
                                  pointcloud=o3d_pcd,
@@ -150,8 +150,7 @@ class DataDumper(object):
     def save_yaml_file(self,
                        perception_manager,
                        localization_manager,
-                       behavior_agent,
-                       count):
+                       behavior_agent):
         """
         Save objects positions/spped, true ego position,
         predicted ego position, sensor transformations.
@@ -167,7 +166,6 @@ class DataDumper(object):
         behavior_agent : opencda object
             OpenCDA behavior agent.
         """
-        frame = count
 
         dump_yml = {}
         vehicle_dict = {}
@@ -230,47 +228,49 @@ class DataDumper(object):
                         float(localization_manager.get_ego_spd())})
 
         # dump lidar sensor coordinates under world coordinate system
-        lidar_transformation = self.lidar.sensor.get_transform()
-        dump_yml.update({'lidar_pose': [
-            lidar_transformation.location.x,
-            lidar_transformation.location.y,
-            lidar_transformation.location.z,
-            lidar_transformation.rotation.roll,
-            lidar_transformation.rotation.yaw,
-            lidar_transformation.rotation.pitch]})
+        if self.lidar:
+            lidar_transformation = self.lidar.sensor.get_transform()
+            dump_yml.update({'lidar_pose': [
+                lidar_transformation.location.x,
+                lidar_transformation.location.y,
+                lidar_transformation.location.z,
+                lidar_transformation.rotation.roll,
+                lidar_transformation.rotation.yaw,
+                lidar_transformation.rotation.pitch]})
 
         # dump camera sensor coordinates under world coordinate system
-        for (i, camera) in enumerate(self.rgb_camera):
-            camera_param = {}
-            camera_transformation = camera.sensor.get_transform()
-            camera_param.update({'cords': [
-                camera_transformation.location.x,
-                camera_transformation.location.y,
-                camera_transformation.location.z,
-                camera_transformation.rotation.roll,
-                camera_transformation.rotation.yaw,
-                camera_transformation.rotation.pitch
-            ]})
+        if self.rgb_camera:
+            for (i, camera) in enumerate(self.rgb_camera):
+                camera_param = {}
+                camera_transformation = camera.sensor.get_transform()
+                camera_param.update({'cords': [
+                    camera_transformation.location.x,
+                    camera_transformation.location.y,
+                    camera_transformation.location.z,
+                    camera_transformation.rotation.roll,
+                    camera_transformation.rotation.yaw,
+                    camera_transformation.rotation.pitch
+                ]})
 
-            # dump intrinsic matrix
-            camera_intrinsic = st.get_camera_intrinsic(camera.sensor)
-            camera_intrinsic = self.matrix2list(camera_intrinsic)
-            camera_param.update({'intrinsic': camera_intrinsic})
+                # dump intrinsic matrix
+                camera_intrinsic = st.get_camera_intrinsic(camera.sensor)
+                camera_intrinsic = self.matrix2list(camera_intrinsic)
+                camera_param.update({'intrinsic': camera_intrinsic})
 
-            # dump extrinsic matrix lidar2camera
-            lidar2world = \
-                st.x_to_world_transformation(self.lidar.sensor.get_transform())
-            camera2world = \
-                st.x_to_world_transformation(camera.sensor.get_transform())
+                # dump extrinsic matrix lidar2camera
+                lidar2world = \
+                    st.x_to_world_transformation(self.lidar.sensor.get_transform())
+                camera2world = \
+                    st.x_to_world_transformation(camera.sensor.get_transform())
 
-            world2camera = np.linalg.inv(camera2world)
-            lidar2camera = np.dot(world2camera, lidar2world)
-            lidar2camera = self.matrix2list(lidar2camera)
-            camera_param.update({'extrinsic': lidar2camera})
-            dump_yml.update({'camera%d' % i: camera_param})
+                world2camera = np.linalg.inv(camera2world)
+                lidar2camera = np.dot(world2camera, lidar2world)
+                lidar2camera = self.matrix2list(lidar2camera)
+                camera_param.update({'extrinsic': lidar2camera})
+                dump_yml.update({'camera%d' % i: camera_param})
 
         dump_yml.update({'RSU': True})
-        # dump the planned trajectory if it exisit.
+        # dump the planned trajectory if it exists.
         if behavior_agent is not None:
             trajectory_deque = \
                 behavior_agent.get_local_planner().get_trajectory()
@@ -287,7 +287,7 @@ class DataDumper(object):
             dump_yml.update({'plan_trajectory': trajectory_list})
             dump_yml.update({'RSU': False})
 
-        yml_name = '%06d' % frame + '.yaml'
+        yml_name = '%06d' % self.count + '.yaml'
         save_path = os.path.join(self.save_parent_folder,
                                  yml_name)
 

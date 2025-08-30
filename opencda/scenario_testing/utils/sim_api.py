@@ -25,6 +25,7 @@ from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
+from CARLA.manager import CarlaManager
 
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
@@ -182,9 +183,11 @@ class ScenarioManager:
             np.random.seed(simulation_config['seed'])
             random.seed(simulation_config['seed'])
 
-        self.client = \
-            carla.Client('localhost', simulation_config['client_port'])
-        self.client.set_timeout(60.0)
+        self.carla_manager = CarlaManager()
+        self.client = self.carla_manager.ensure_running()
+        # self.client = \
+        #     carla.Client('localhost', simulation_config['client_port'])
+        # self.client.set_timeout(60.0)
 
         if xodr_path:
             self.world = load_customized_world(xodr_path, self.client)
@@ -267,7 +270,7 @@ class ScenarioManager:
 
     def create_vehicle_manager(self, application,
                                map_helper=None,
-                               data_dump=False):
+                               data_dump=True):
         """
         Create a list of single CAVs.
 
@@ -392,7 +395,7 @@ class ScenarioManager:
 
         return [vehicle_manager]
 
-    def create_platoon_manager(self, map_helper=None, data_dump=False):
+    def create_platoon_manager(self, map_helper=None, data_dump=True):
         """
         Create a list of platoons.
 
@@ -742,15 +745,18 @@ class ScenarioManager:
 
     def destroyActors(self):
         """
-        Destroy all actors in the world.
+        Destroy only vehicles, pedestrians, and sensors.
         """
-
+        self.client.set_timeout(0.1)
         actor_list = self.world.get_actors()
         for actor in actor_list:
+            if not actor.is_alive:
+                continue
 
-            if actor.is_alive and actor.type_id != "spectator":
+            tid = actor.type_id
+            # Only allow vehicles, pedestrians, and sensors
+            if tid.startswith("vehicle.") or tid.startswith("walker.") or tid.startswith("sensor."):
                 actor.destroy()
-                print(f"{actor.type_id} is destroyed!")
 
     def close(self):
         """

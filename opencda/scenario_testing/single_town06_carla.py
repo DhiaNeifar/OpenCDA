@@ -39,7 +39,7 @@ def run_scenario(opt, scenario_params):
         # create evaluation manager
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
-                              script_name='single_2lanefree_carla',
+                              script_name='single_town06_carla',
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
@@ -61,15 +61,11 @@ def run_scenario(opt, scenario_params):
                 single_cav.vehicle.apply_control(control)
 
     finally:
-        eval_manager.evaluate()
-
         if opt.record:
             scenario_manager.client.stop_recorder()
 
+        scenario_manager.destroyActors()
         scenario_manager.close()
 
-        for v in single_cav_list:
-            v.destroy()
-        for v in bg_veh_list:
-            v.destroy()
 
+        eval_manager.evaluate()

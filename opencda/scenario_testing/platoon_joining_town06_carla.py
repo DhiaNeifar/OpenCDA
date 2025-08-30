@@ -33,7 +33,7 @@ def run_scenario(opt, scenario_params):
         # create platoon members
         platoon_list = \
             scenario_manager.create_platoon_manager(
-                data_dump=False)
+                data_dump=True)
 
         # create single cavs
         single_cav_list = \
@@ -80,15 +80,8 @@ def run_scenario(opt, scenario_params):
         if opt.record:
             scenario_manager.client.stop_recorder()
 
-        scenario_manager.destroyActors()
         scenario_manager.close()
+        scenario_manager.destroyActors()
 
-        for platoon in platoon_list:
-            platoon.destroy()
-        for cav in single_cav_list:
-            cav.destroy()
-        for v in bg_veh_list:
-            v.destroy()
-
-       eval_manager.evaluate()
+        eval_manager.evaluate()
 

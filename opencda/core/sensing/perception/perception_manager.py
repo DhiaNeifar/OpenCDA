@@ -334,7 +334,7 @@ class SemanticLidarSensor:
 
 class PerceptionManager:
     """
-    Default perception module. Currenly only used to detect vehicles.
+    Default perception module. Currently only used to detect vehicles.
 
     Parameters
     ----------
@@ -367,7 +367,7 @@ class PerceptionManager:
     """
 
     def __init__(self, vehicle, config_yaml, cav_world,
-                 data_dump=False, carla_world=None, infra_id=None):
+                 data_dump=True, carla_world=None, infra_id=None):
         self.vehicle = vehicle
         self.carla_world = carla_world if carla_world is not None \
             else self.vehicle.get_world()
@@ -629,7 +629,7 @@ class PerceptionManager:
             for (i, rgb_camera) in enumerate(self.rgb_camera):
                 if i > self.camera_num - 1 or i > self.camera_visualize - 1:
                     break
-                # we only visualiz the frontal camera
+                # we only visualize the frontal camera
                 rgb_image = np.array(rgb_camera.image)
                 # draw the ground truth bbx on the camera image
                 rgb_image = self.visualize_3d_bbx_front_camera(objects,
@@ -665,8 +665,8 @@ class PerceptionManager:
         """
         By utilizing semantic lidar, we can retrieve the objects that
         are in the lidar detection range from the server.
-        This function is important for collect training data for object
-        detection as it can filter out the objects out of the senor range.
+        This function is important to collect training data for object
+        detection as it can filter out the objects out of the sensor range.
 
         Parameters
         ----------
@@ -677,14 +677,14 @@ class PerceptionManager:
         Returns
         -------
         new_vehicle_list : list
-            The list that filters out the out of scope vehicles.
+            The list that filters out the out-of-scope vehicles.
 
         """
         semantic_idx = self.semantic_lidar.obj_idx
         semantic_tag = self.semantic_lidar.obj_tag
 
         # label 10 is the vehicle
-        vehicle_idx = semantic_idx[semantic_tag == 10]
+        vehicle_idx = semantic_idx[semantic_tag == 14]
         # each individual instance id
         vehicle_unique_id = list(np.unique(vehicle_idx))
 

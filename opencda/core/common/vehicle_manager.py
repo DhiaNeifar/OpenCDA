@@ -81,7 +81,7 @@ class VehicleManager(object):
             carla_map,
             cav_world,
             current_time='',
-            data_dumping=False):
+            data_dumping=True):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())

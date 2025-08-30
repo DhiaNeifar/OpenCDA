@@ -56,7 +56,7 @@ class RSUManager(object):
             carla_map,
             cav_world,
             current_time='',
-            data_dumping=False):
+            data_dumping=True):
 
         self.rid = config_yaml['id']
         # The id of rsu is always a negative int

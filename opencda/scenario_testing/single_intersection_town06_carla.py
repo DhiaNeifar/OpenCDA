@@ -46,17 +46,19 @@ def run_scenario(opt, scenario_params):
                               current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
+        spectator_vehicle = single_cav_list[0].vehicle
+
         # run steps
         while True:
             scenario_manager.tick()
-            transform = single_cav_list[0].vehicle.get_transform()
-            spectator.set_transform(carla.Transform(
-                transform.location +
-                carla.Location(
-                    z=50),
-                carla.Rotation(
-                    pitch=-
-                    90)))
+            transform = spectator_vehicle.get_transform()
+
+            spectator.set_transform(
+                carla.Transform(
+                    transform.location + carla.Location(z=80),
+                    carla.Rotation(pitch=-90)
+                )
+            )
 
             for i, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
@@ -64,11 +66,10 @@ def run_scenario(opt, scenario_params):
                 single_cav.vehicle.apply_control(control)
 
     finally:
-        eval_manager.evaluate()
-
         if opt.record:
             scenario_manager.client.stop_recorder()
 
+        scenario_manager.destroyActors()
         scenario_manager.close()
 
         for v in single_cav_list:
@@ -76,3 +77,4 @@ def run_scenario(opt, scenario_params):
         for v in bg_veh_list:
             v.destroy()
 
+        eval_manager.evaluate()

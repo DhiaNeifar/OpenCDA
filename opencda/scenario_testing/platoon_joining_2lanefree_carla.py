@@ -39,7 +39,7 @@ def run_scenario(opt, scenario_params):
         platoon_list = \
             scenario_manager.create_platoon_manager(
                 map_helper=map_api.spawn_helper_2lanefree,
-                data_dump=False)
+                data_dump=True)
 
         # create single cavs
         single_cav_list = \

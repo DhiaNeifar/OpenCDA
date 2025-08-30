@@ -36,7 +36,7 @@ def run_scenario(opt, scenario_params):
 
         single_cav_list = \
             scenario_manager.create_vehicle_manager(application=['single'],
-                                                    data_dump=False)
+                                                    data_dump=True)
         rsu_list = \
             scenario_manager.create_rsu_manager(data_dump=True)
 

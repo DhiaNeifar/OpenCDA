@@ -308,26 +308,21 @@ class BehaviorAgent(object):
         """
         return self._local_planner
 
-    def reroute(self, spawn_points):
+    def reroute(self):
         """
         This method implements re-routing for vehicles
         approaching its destination.  It finds a new target and
          computes another path to reach it.
 
-        Parameters
-        ----------
-        spawn_points : list
-            List of possible destinations for the agent.
         """
-        if self.debug:
-            print("Target almost reached, setting new destination...")
+        spawn_points = self._map.get_spawn_points()
+        print("Target almost reached, setting new destination...")
         random.shuffle(spawn_points)
         new_start = \
             self._local_planner.waypoints_queue[-1][0].transform.location
         destination = spawn_points[0].location if \
             spawn_points[0].location != new_start else spawn_points[1].location
-        if self.debug:
-            print("New destination: " + str(destination))
+        print("New destination: " + str(destination))
 
         self.set_destination(new_start, destination)
 
@@ -792,8 +787,8 @@ class BehaviorAgent(object):
 
         # 0. Simulation ends condition
         if self.is_close_to_destination():
-            print('Simulation is Over')
-            sys.exit(0)
+            print('Simulation is <Supposedly> Over!')
+            self.reroute()
 
         # 1. Traffic light management
         if self.traffic_light_manager(ego_vehicle_wp) != 0:

@@ -11,7 +11,7 @@ extra_args:
   - "RenderOffScreen"
 
 boot_grace_seconds: 5.0
-connect_retry_seconds: 45.0
+connect_retry_seconds: 60.0
 kill_stale_on_launch: false
 
 workdir: null

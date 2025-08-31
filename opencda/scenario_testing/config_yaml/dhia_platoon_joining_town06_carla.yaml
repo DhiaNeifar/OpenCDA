@@ -79,6 +79,7 @@ scenario:
                 positions:
                   - [2.5, 0, 1.0, 0]
           behavior:
+            max_speed: 100 # maximum speed, km/h
             local_planner:
               debug_trajectory: false
               debug: false

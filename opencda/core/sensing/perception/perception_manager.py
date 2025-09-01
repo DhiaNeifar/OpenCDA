@@ -9,6 +9,7 @@ Perception module base.
 import weakref
 import sys
 import time
+from dataclasses import dataclass
 
 import carla
 import cv2
@@ -20,10 +21,20 @@ from opencda.core.common.misc import \
     cal_distance_angle, get_speed, get_speed_sumo
 from opencda.core.sensing.perception.obstacle_vehicle import \
     ObstacleVehicle
+from opencda.core.sensing.perception.obstacle_pedestrian import \
+    ObstaclePedestrian
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import \
     o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, \
     o3d_camera_lidar_fusion
+
+
+
+@dataclass(frozen=True)
+class SemanticTags:
+    """CARLA semantic LiDAR object tags of interest."""
+    VEHICLE: int = 14
+    PEDESTRIAN: int = 12
 
 
 class CameraSensor:
@@ -54,7 +65,7 @@ class CameraSensor:
 
     """
 
-    def __init__(self, vehicle, world, relative_position, global_position, image_size=(512, 512)):
+    def __init__(self, vehicle, world, relative_position, global_position, image_size=(1920, 960)):
 
         # image_size parameter has been added by Dhia Neifar.
         # The user can choose the image dimensions and Carla handles the rest.
@@ -296,8 +307,7 @@ class SemanticLidarSensor:
 
         # lidar data
         self.points = None
-        self.obj_idx = None
-        self.obj_tag = None
+        self.obj_data = None
 
         self.timestamp = None
         self.frame = 0
@@ -324,9 +334,11 @@ class SemanticLidarSensor:
 
         # (x, y, z, intensity)
         self.points = np.array([data['x'], data['y'], data['z']]).T
-        self.obj_tag = np.array(data['ObjTag'])
-        self.obj_idx = np.array(data['ObjIdx'])
-
+        self.obj_data = {
+            "idx": np.array(data['ObjIdx']),
+            "tag": np.array(data['ObjTag']),
+            "frame": event.frame
+        }
         self.data = data
         self.frame = event.frame
         self.timestamp = event.timestamp
@@ -479,6 +491,7 @@ class PerceptionManager:
         self.ego_pos = ego_pos
 
         objects = {'vehicles': [],
+                   'pedestrians': [],
                    'traffic_lights': []}
 
         if not self.activate:
@@ -594,31 +607,36 @@ class PerceptionManager:
 
         vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and
                         v.id != self.id]
-
         # use semantic lidar to filter out vehicles out of the range
         if self.data_dump and self.semantic_lidar:
-            vehicle_list = self.filter_vehicle_out_sensor(vehicle_list)
+            vehicle_list = self.filter_actor_out_sensor(vehicle_list, SemanticTags.VEHICLE)
 
         # convert carla.Vehicle to opencda.ObstacleVehicle if lidar
         # visualization is required.
         if self.lidar:
-            vehicle_list = [
-                ObstacleVehicle(
-                    None,
-                    None,
-                    v,
-                    self.lidar.sensor,
-                    self.cav_world.sumo2carla_ids) for v in vehicle_list]
+            vehicle_list = [ObstacleVehicle(None, None, v, self.lidar.sensor, self.cav_world.sumo2carla_ids)
+                            for v in vehicle_list]
         else:
-            vehicle_list = [
-                ObstacleVehicle(
-                    None,
-                    None,
-                    v,
-                    None,
-                    self.cav_world.sumo2carla_ids) for v in vehicle_list]
+            vehicle_list = [ObstacleVehicle(None, None, v, None, self.cav_world.sumo2carla_ids)
+                            for v in vehicle_list]
 
         objects.update({'vehicles': vehicle_list})
+
+        # --- ADD PEDESTRIANS ---
+        pedestrian_list = world.get_actors().filter("walker.pedestrian.*")
+        pedestrian_list = [p for p in pedestrian_list if self.dist(p) < thresh]
+        if self.data_dump and self.semantic_lidar:
+            pedestrian_list = self.filter_actor_out_sensor(pedestrian_list, SemanticTags.PEDESTRIAN)
+
+        if self.lidar:
+            pedestrian_list = [ObstaclePedestrian(None, None, p, self.lidar.sensor)
+                               for p in pedestrian_list]
+        else:
+            pedestrian_list = [ObstaclePedestrian(None, None, p, None)
+                               for p in pedestrian_list]
+
+        objects.update({'pedestrians': pedestrian_list})
+        # ------------------------
 
         if self.camera_visualize:
             while self.rgb_camera[0].image is None:
@@ -632,11 +650,9 @@ class PerceptionManager:
                 # we only visualize the frontal camera
                 rgb_image = np.array(rgb_camera.image)
                 # draw the ground truth bbx on the camera image
-                rgb_image = self.visualize_3d_bbx_front_camera(objects,
-                                                               rgb_image,
-                                                               i)
+                rgb_image = self.visualize_3d_bbx_front_camera(objects, rgb_image, i)
                 # resize to make it fittable to the screen
-                rgb_image = cv2.resize(rgb_image, (0, 0), fx=0.4, fy=0.4)
+                # rgb_image = cv2.resize(rgb_image, (0, 0), fx=0.4, fy=0.4)
 
                 # show image using cv2
                 cv2.imshow(
@@ -649,11 +665,7 @@ class PerceptionManager:
                 continue
             o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
             # render the raw lidar
-            o3d_visualizer_show(
-                self.o3d_vis,
-                self.count,
-                self.lidar.o3d_pointcloud,
-                objects)
+            o3d_visualizer_show(self.o3d_vis, self.count, self.lidar.o3d_pointcloud, objects)
 
         # add traffic light
         objects = self.retrieve_traffic_lights(objects)
@@ -661,7 +673,7 @@ class PerceptionManager:
 
         return objects
 
-    def filter_vehicle_out_sensor(self, vehicle_list):
+    def filter_actor_out_sensor(self, actor_list, sem_tag):
         """
         By utilizing semantic lidar, we can retrieve the objects that
         are in the lidar detection range from the server.
@@ -670,7 +682,9 @@ class PerceptionManager:
 
         Parameters
         ----------
-        vehicle_list : list
+        sem_tag : int
+            Semantic tag associated to actor type. Refer to official CARLA docs.
+        actor_list : list
             The list contains all vehicles information retrieves from the
             server.
 
@@ -680,23 +694,23 @@ class PerceptionManager:
             The list that filters out the out-of-scope vehicles.
 
         """
-        while self.semantic_lidar.obj_tag is None:
+        while self.semantic_lidar.obj_data is None:
             print("Semantic Lidar Collecting Data. Sleeping...", end="\r")
             time.sleep(1)
-        semantic_idx = self.semantic_lidar.obj_idx
-        semantic_tag = self.semantic_lidar.obj_tag
+        semantic_idx = self.semantic_lidar.obj_data['idx']
+        semantic_tag = self.semantic_lidar.obj_data['tag']
 
         # label 10 is the vehicle
-        vehicle_idx = semantic_idx[semantic_tag == 14]
+        actor_idx = semantic_idx[semantic_tag == sem_tag]
         # each individual instance id
-        vehicle_unique_id = list(np.unique(vehicle_idx))
+        actor_unique_id = list(np.unique(actor_idx))
 
-        new_vehicle_list = []
-        for veh in vehicle_list:
-            if veh.id in vehicle_unique_id:
-                new_vehicle_list.append(veh)
+        new_actor_list = []
+        for veh in actor_list:
+            if veh.id in actor_unique_id:
+                new_actor_list.append(veh)
 
-        return new_vehicle_list
+        return new_actor_list
 
     def visualize_3d_bbx_front_camera(self, objects, rgb_image, camera_index):
         """
@@ -714,27 +728,39 @@ class PerceptionManager:
             Indicate the index of the current camera.
 
         """
-        camera_transform = \
-            self.rgb_camera[camera_index].sensor.get_transform()
-        camera_location = \
-            camera_transform.location
-        camera_rotation = \
-            camera_transform.rotation
+        camera_transform = self.rgb_camera[camera_index].sensor.get_transform()
+        camera_location = camera_transform.location
+        camera_rotation = camera_transform.rotation
 
-        for v in objects['vehicles']:
-            # we only draw the bounding box in the fov of camera
+        # --- Vehicles (blue) ---
+        for v in objects.get('vehicles', []):
             _, angle = cal_distance_angle(
-                v.get_location(), camera_location,
-                camera_rotation.yaw)
+                v.get_location(), camera_location, camera_rotation.yaw)
             if angle < 60:
                 bbx_camera = st.get_2d_bb(
                     v,
                     self.rgb_camera[camera_index].sensor,
                     camera_transform)
-                cv2.rectangle(rgb_image,
-                              (int(bbx_camera[0, 0]), int(bbx_camera[0, 1])),
-                              (int(bbx_camera[1, 0]), int(bbx_camera[1, 1])),
-                              (255, 0, 0), 2)
+                cv2.rectangle(
+                    rgb_image,
+                    (int(bbx_camera[0, 0]), int(bbx_camera[0, 1])),
+                    (int(bbx_camera[1, 0]), int(bbx_camera[1, 1])),
+                    (255, 0, 0), 2)  # blue
+
+        # --- Pedestrians (green) ---
+        for p in objects.get('pedestrians', []):
+            _, angle = cal_distance_angle(
+                p.get_location(), camera_location, camera_rotation.yaw)
+            if angle < 60:
+                bbx_camera = st.get_2d_bb(
+                    p,
+                    self.rgb_camera[camera_index].sensor,
+                    camera_transform)
+                cv2.rectangle(
+                    rgb_image,
+                    (int(bbx_camera[0, 0]), int(bbx_camera[0, 1])),
+                    (int(bbx_camera[1, 0]), int(bbx_camera[1, 1])),
+                    (0, 255, 0), 2)  # green
 
         return rgb_image
 

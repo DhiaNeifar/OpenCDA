@@ -707,7 +707,7 @@ class ScenarioManager:
         bg_list : list
             The list that contains all background traffic vehicles and pedestrians.
         """
-        print('Spawning CARLA traffic flow.')
+        print('Spawning CARLA traffic flow.\n')
         traffic_config = self.scenario_params['carla_traffic_manager']
         tm = self.client.get_trafficmanager()
 
@@ -727,8 +727,6 @@ class ScenarioManager:
         else:
             bg_list = self.spawn_vehicle_by_range(tm, traffic_config, bg_list)
 
-        print("HOLA")
-        print(traffic_config['pedestrian_list'])
         bg_list = self.spawn_pedestrians(traffic_config['pedestrian_list'], bg_list)
         # # Pedestrians
         # if 'pedestrian_list' in traffic_config and traffic_config['pedestrian_list'] > 0:
@@ -754,7 +752,6 @@ class ScenarioManager:
         bg_list : list
             Updated list including pedestrians + controllers.
         """
-        print("HEY")
         blueprint_library = self.world.get_blueprint_library()
         walker_bps = blueprint_library.filter("walker.pedestrian.*")
         controller_bp = blueprint_library.find("controller.ai.walker")

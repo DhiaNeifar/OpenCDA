@@ -102,24 +102,23 @@ class DataDumper(object):
             return
 
         if self.rgb_camera:
-            self.save_rgb_image()
+            self.save_rgb_image(perception_manager)
         if self.lidar:
             self.save_lidar_points()
         self.save_yaml_file(perception_manager,
                             localization_manager,
                             behavior_agent)
 
-    def save_rgb_image(self):
+    def save_rgb_image(self, perception_manager):
         """
         Save camera rgb images to disk.
         """
         for (i, camera) in enumerate(self.rgb_camera):
 
-            frame = camera.frame
             image = camera.image
 
             image_name = '%06d' % self.count + '_' + 'camera%d' % i + '.png'
-
+            image = perception_manager.visualize_3d_bbx_front_camera(perception_manager.objects, image, i)
             cv2.imwrite(os.path.join(self.save_parent_folder, image_name),
                         image)
 
@@ -153,7 +152,7 @@ class DataDumper(object):
                        localization_manager,
                        behavior_agent):
         """
-        Save objects positions/spped, true ego position,
+        Save objects positions/speed, true ego position,
         predicted ego position, sensor transformations.
 
         Parameters
@@ -170,19 +169,20 @@ class DataDumper(object):
 
         dump_yml = {}
         vehicle_dict = {}
+        pedestrian_dict = {}
 
-        # dump obstacle vehicles first
+        # --- dump obstacle vehicles ---
         objects = perception_manager.objects
-        vehicle_list = objects['vehicles']
-
+        vehicle_list = objects.get('vehicles', [])
         for veh in vehicle_list:
             veh_carla_id = veh.carla_id
             veh_pos = veh.get_transform()
             veh_bbx = veh.bounding_box
             veh_speed = get_speed(veh)
 
-            assert veh_carla_id != -1, "Please turn off perception active" \
-                                       "mode if you are dumping data"
+            assert veh_carla_id != -1, (
+                "Please turn off perception active mode if you are dumping data"
+            )
 
             vehicle_dict.update({veh_carla_id: {
                 'bp_id': veh.type_id,
@@ -204,12 +204,43 @@ class DataDumper(object):
 
         dump_yml.update({'vehicles': vehicle_dict})
 
-        # dump ego pose and speed, if vehicle does not exist, then it is
-        # a rsu(road side unit).
+        # --- dump obstacle pedestrians ---
+        pedestrian_list = objects.get('pedestrians', [])
+        for ped in pedestrian_list:
+            ped_carla_id = ped.carla_id
+            ped_pos = ped.get_transform()
+            ped_bbx = ped.bounding_box
+            ped_speed = get_speed(ped)
+
+            assert ped_carla_id != -1, (
+                "Please turn off perception active mode if you are dumping data"
+            )
+
+            pedestrian_dict.update({ped_carla_id: {
+                'bp_id': ped.type_id,
+                'color': getattr(ped, "color", None),
+                "location": [ped_pos.location.x,
+                             ped_pos.location.y,
+                             ped_pos.location.z],
+                "center": [ped_bbx.location.x,
+                           ped_bbx.location.y,
+                           ped_bbx.location.z],
+                "angle": [ped_pos.rotation.roll,
+                          ped_pos.rotation.yaw,
+                          ped_pos.rotation.pitch],
+                "extent": [ped_bbx.extent.x,
+                           ped_bbx.extent.y,
+                           ped_bbx.extent.z],
+                "speed": ped_speed
+            }})
+
+        dump_yml.update({'pedestrians': pedestrian_dict})
+
+        # --- dump ego pose and speed ---
         predicted_ego_pos = localization_manager.get_ego_pos()
-        true_ego_pos = localization_manager.vehicle.get_transform() \
-            if hasattr(localization_manager, 'vehicle') \
-            else localization_manager.true_ego_pos
+        true_ego_pos = (localization_manager.vehicle.get_transform()
+                        if hasattr(localization_manager, 'vehicle')
+                        else localization_manager.true_ego_pos)
 
         dump_yml.update({'predicted_ego_pos': [
             predicted_ego_pos.location.x,
@@ -226,9 +257,9 @@ class DataDumper(object):
             true_ego_pos.rotation.yaw,
             true_ego_pos.rotation.pitch]})
         dump_yml.update({'ego_speed':
-                        float(localization_manager.get_ego_spd())})
+                             float(localization_manager.get_ego_spd())})
 
-        # dump lidar sensor coordinates under world coordinate system
+        # --- dump lidar pose ---
         if self.lidar:
             lidar_transformation = self.lidar.sensor.get_transform()
             dump_yml.update({'lidar_pose': [
@@ -239,7 +270,7 @@ class DataDumper(object):
                 lidar_transformation.rotation.yaw,
                 lidar_transformation.rotation.pitch]})
 
-        # dump camera sensor coordinates under world coordinate system
+        # --- dump camera poses, intrinsics, extrinsics ---
         if self.rgb_camera:
             for (i, camera) in enumerate(self.rgb_camera):
                 camera_param = {}
@@ -253,28 +284,28 @@ class DataDumper(object):
                     camera_transformation.rotation.pitch
                 ]})
 
-                # dump intrinsic matrix
+                # intrinsic
                 camera_intrinsic = st.get_camera_intrinsic(camera.sensor)
                 camera_intrinsic = self.matrix2list(camera_intrinsic)
                 camera_param.update({'intrinsic': camera_intrinsic})
 
-                # dump extrinsic matrix lidar2camera
-                lidar2world = \
-                    st.x_to_world_transformation(self.lidar.sensor.get_transform())
-                camera2world = \
-                    st.x_to_world_transformation(camera.sensor.get_transform())
-
+                # extrinsic (lidar to camera)
+                lidar2world = st.x_to_world_transformation(
+                    self.lidar.sensor.get_transform())
+                camera2world = st.x_to_world_transformation(
+                    camera.sensor.get_transform())
                 world2camera = np.linalg.inv(camera2world)
                 lidar2camera = np.dot(world2camera, lidar2world)
                 lidar2camera = self.matrix2list(lidar2camera)
                 camera_param.update({'extrinsic': lidar2camera})
-                dump_yml.update({'camera%d' % i: camera_param})
+
+                dump_yml.update({f'camera{i}': camera_param})
 
         dump_yml.update({'RSU': True})
-        # dump the planned trajectory if it exists.
+
+        # --- dump planned trajectory if exists ---
         if behavior_agent is not None:
-            trajectory_deque = \
-                behavior_agent.get_local_planner().get_trajectory()
+            trajectory_deque = behavior_agent.get_local_planner().get_trajectory()
             trajectory_list = []
 
             for i in range(len(trajectory_deque)):
@@ -282,16 +313,14 @@ class DataDumper(object):
                 x = tmp_buffer[0].location.x
                 y = tmp_buffer[0].location.y
                 spd = tmp_buffer[1]
-
                 trajectory_list.append([x, y, spd])
 
             dump_yml.update({'plan_trajectory': trajectory_list})
             dump_yml.update({'RSU': False})
 
-        yml_name = '%06d' % self.count + '.yaml'
-        save_path = os.path.join(self.save_parent_folder,
-                                 yml_name)
-
+        # --- save yaml file ---
+        yml_name = f"{self.count:06d}.yaml"
+        save_path = os.path.join(self.save_parent_folder, yml_name)
         save_yaml(dump_yml, save_path)
 
     @staticmethod

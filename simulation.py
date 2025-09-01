@@ -45,7 +45,7 @@ def arg_parse():
                         (_ for _ in ()).throw(argparse.ArgumentTypeError(f"{v} must be > 1")),
                         default=3, help="Specify the number of CAVs in the simulation (must be > 1)."
     )
-    parser.add_argument('-n', '--number_vehicles', type=int, default=10,
+    parser.add_argument('-n', '--number_vehicles', type=int, default=50,
                         help='Specify the number of vehicles (not connected) in the simulation.')
     parser.add_argument('-p', '--number_pedestrians', type=int, default=10,
                         help='Specify the number of pedestrians in the simulation.')
@@ -88,6 +88,11 @@ def main() -> None:
     # add cavs
     for cav in range(1, opt.number_cavs):
         scene_dict['scenario']['single_cav_list'].append({'name': f'cav{cav}'})
+
+    # update number of vehicles handled by traffic manager
+    scene_dict['carla_traffic_manager']['vehicle_list'] = opt.number_vehicles
+    # update number of pedestrians handled by traffic manager
+    scene_dict['carla_traffic_manager']['pedestrian_list'] = opt.number_pedestrians
 
     run_scenario(opt, scene_dict)
 
@@ -161,4 +166,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print(' - Exited by user.')
 
-    # Command: python simulation.py -s simulation -t 100 -m Town03
+    # Command: python simulation.py -s simulation -t 100 -m Town03 -c 1

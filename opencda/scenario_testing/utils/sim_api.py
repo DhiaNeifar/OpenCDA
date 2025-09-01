@@ -270,6 +270,21 @@ class ScenarioManager:
         )
         return weather
 
+
+    def spawn_vehicle(self, cav_vehicle_bp) -> carla.Actor:
+        vehicle = None
+
+        while self.spawn_points and vehicle is None:
+            random_spawn_point = random.choice(self.spawn_points)
+            vehicle = self.world.try_spawn_actor(cav_vehicle_bp, random_spawn_point)
+            self.spawn_points.remove(random_spawn_point)
+
+        if vehicle is None:
+            print("No available spawn points to spawn the vehicle.")
+            sys.exit(0)
+
+        return vehicle
+
     def create_vehicle_manager(self, application,
                                map_helper=None,
                                data_dump=True):
@@ -302,8 +317,6 @@ class ScenarioManager:
             self.world.get_blueprint_library().find(default_model)
         single_cav_list = []
 
-        spawn_points = random.sample(self.spawn_points,
-                                     len(self.scenario_params['scenario']['single_cav_list']))
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
             # in case the cav wants to join a platoon later
@@ -316,7 +329,7 @@ class ScenarioManager:
             # helper to transfer to spawn transform
 
             cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-            vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_points[i])
+            vehicle = self.spawn_vehicle(cav_vehicle_bp)
 
             # create vehicle manager for each cav
             vehicle_manager = VehicleManager(
@@ -536,16 +549,7 @@ class ScenarioManager:
             if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
         ego_vehicle_bp = blueprint_library.find(default_model)
 
-        for i, vehicle_config in enumerate(traffic_config['vehicle_list']):
-            spawn_transform = carla.Transform(
-                carla.Location(
-                    x=vehicle_config['spawn_position'][0],
-                    y=vehicle_config['spawn_position'][1],
-                    z=vehicle_config['spawn_position'][2]),
-                carla.Rotation(
-                    pitch=vehicle_config['spawn_position'][5],
-                    yaw=vehicle_config['spawn_position'][4],
-                    roll=vehicle_config['spawn_position'][3]))
+        for i in range(traffic_config['vehicle_list']):
 
             if not traffic_config['random']:
                 ego_vehicle_bp.set_attribute('color', color)
@@ -565,13 +569,12 @@ class ScenarioManager:
                             'color').recommended_values)
                     ego_vehicle_bp.set_attribute('color', color)
 
-            vehicle = self.world.spawn_actor(ego_vehicle_bp, spawn_transform)
-            print("vehicle set to autopilot")
+            vehicle = self.spawn_vehicle(ego_vehicle_bp)
             vehicle.set_autopilot(True, 8000)
 
-            if 'vehicle_speed_perc' in vehicle_config:
-                tm.vehicle_percentage_speed_difference(
-                    vehicle, vehicle_config['vehicle_speed_perc'])
+            # if 'vehicle_speed_perc' in vehicle_config:
+            #     tm.vehicle_percentage_speed_difference(
+            #         vehicle, vehicle_config['vehicle_speed_perc'])
             tm.auto_lane_change(vehicle, traffic_config['auto_lane_change'])
 
             bg_list.append(vehicle)
@@ -646,8 +649,7 @@ class ScenarioManager:
 
             spawn_transform = carla.Transform(carla.Location(x=coordinates[0],
                                                              y=coordinates[1],
-                                                             z=coordinates[
-                2] + 0.3),
+                                                             z=coordinates[2] + 0.3),
                 carla.Rotation(
                 roll=coordinates[3],
                 yaw=coordinates[4],
@@ -718,7 +720,7 @@ class ScenarioManager:
 
         bg_list = []
 
-        if isinstance(traffic_config['vehicle_list'], list) or \
+        if isinstance(traffic_config['vehicle_list'], int) or \
                 isinstance(traffic_config['vehicle_list'], ListConfig):
             bg_list = self.spawn_vehicles_by_list(tm,
                                                   traffic_config,
@@ -742,14 +744,18 @@ class ScenarioManager:
         """
         self.client.set_timeout(0.1)
         actor_list = self.world.get_actors()
+        v = 0
         for actor in actor_list:
             if not actor.is_alive:
                 continue
 
             tid = actor.type_id
             # Only allow vehicles, pedestrians, and sensors
+            if tid.startswith("vehicle."):
+                v += 1
             if tid.startswith("vehicle.") or tid.startswith("walker.") or tid.startswith("sensor."):
                 actor.destroy()
+        print(f"Number vehicle {v}")
 
     def close(self):
         """

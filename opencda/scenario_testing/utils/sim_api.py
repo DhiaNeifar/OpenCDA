@@ -697,7 +697,7 @@ class ScenarioManager:
 
     def create_traffic_carla(self):
         """
-        Create traffic flow.
+        Create traffic flow (vehicles + pedestrians).
 
         Returns
         -------
@@ -705,7 +705,7 @@ class ScenarioManager:
             Carla traffic manager.
 
         bg_list : list
-            The list that contains all the background traffic vehicles.
+            The list that contains all background traffic vehicles and pedestrians.
         """
         print('Spawning CARLA traffic flow.')
         traffic_config = self.scenario_params['carla_traffic_manager']
@@ -720,17 +720,70 @@ class ScenarioManager:
 
         bg_list = []
 
+        # Vehicles
         if isinstance(traffic_config['vehicle_list'], int) or \
                 isinstance(traffic_config['vehicle_list'], ListConfig):
-            bg_list = self.spawn_vehicles_by_list(tm,
-                                                  traffic_config,
-                                                  bg_list)
-
+            bg_list = self.spawn_vehicles_by_list(tm, traffic_config, bg_list)
         else:
             bg_list = self.spawn_vehicle_by_range(tm, traffic_config, bg_list)
 
+        print("HOLA")
+        print(traffic_config['pedestrian_list'])
+        bg_list = self.spawn_pedestrians(traffic_config['pedestrian_list'], bg_list)
+        # # Pedestrians
+        # if 'pedestrian_list' in traffic_config and traffic_config['pedestrian_list'] > 0:
+        #
+
         print('CARLA traffic flow generated.')
         return tm, bg_list
+
+    def spawn_pedestrians(self, num_pedestrians, bg_list):
+        """
+        Spawn pedestrians with AI controllers.
+
+        Parameters
+        ----------
+        num_pedestrians : int
+            Number of pedestrians to spawn.
+
+        bg_list : list
+            Background traffic list to extend.
+
+        Returns
+        -------
+        bg_list : list
+            Updated list including pedestrians + controllers.
+        """
+        print("HEY")
+        blueprint_library = self.world.get_blueprint_library()
+        walker_bps = blueprint_library.filter("walker.pedestrian.*")
+        controller_bp = blueprint_library.find("controller.ai.walker")
+
+        spawn_points = []
+        for i in range(num_pedestrians):
+            loc = self.world.get_random_location_from_navigation()
+            if loc is not None:
+                spawn_points.append(carla.Transform(loc))
+
+        # Spawn walkers
+        walkers = []
+        for sp in spawn_points:
+            walker_bp = random.choice(walker_bps)
+            walker_bp.set_attribute("is_invincible", "false")
+            walker = self.world.try_spawn_actor(walker_bp, sp)
+            if walker:
+                walkers.append(walker)
+                bg_list.append(walker)
+
+        # Spawn controllers and set behavior
+        for walker in walkers:
+            controller = self.world.spawn_actor(controller_bp, carla.Transform(), attach_to=walker)
+            controller.start()
+            controller.go_to_location(self.world.get_random_location_from_navigation())
+            controller.set_max_speed(1.4 + random.random())  # ~1.4-2.4 m/s
+            bg_list.append(controller)
+
+        return bg_list
 
     def tick(self):
         """
@@ -744,7 +797,7 @@ class ScenarioManager:
         """
         self.client.set_timeout(0.1)
         actor_list = self.world.get_actors()
-        v = 0
+        v, p = 0, 0
         for actor in actor_list:
             if not actor.is_alive:
                 continue
@@ -753,9 +806,12 @@ class ScenarioManager:
             # Only allow vehicles, pedestrians, and sensors
             if tid.startswith("vehicle."):
                 v += 1
-            if tid.startswith("vehicle.") or tid.startswith("walker.") or tid.startswith("sensor."):
+            if tid.startswith("walker."):
+                p += 1
+            if tid.startswith("vehicle.") or tid.startswith("walker.") or tid.startswith("sensor.") or tid.startswith("controller."):
                 actor.destroy()
-        print(f"Number vehicle {v}")
+        print(f"Number vehicles {v}")
+        print(f"Number pedestrians {p}")
 
     def close(self):
         """

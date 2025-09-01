@@ -41,8 +41,8 @@ def arg_parse():
     parser.add_argument('-m', '--map', type=check_map, default='Town06',
                         help='Specify the desired Carla map in the simulation.')
     parser.add_argument("-c", "--number_cavs",
-                        type=lambda v: int(v) if int(v) > 1 else
-                        (_ for _ in ()).throw(argparse.ArgumentTypeError(f"{v} must be > 1")),
+                        type=lambda v: int(v) if int(v) > 0 else
+                        (_ for _ in ()).throw(argparse.ArgumentTypeError(f"{v} must be > 0")),
                         default=3, help="Specify the number of CAVs in the simulation (must be > 1)."
     )
     parser.add_argument('-n', '--number_vehicles', type=int, default=50,
@@ -166,4 +166,4 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print(' - Exited by user.')
 
-    # Command: python simulation.py -s simulation -t 100 -m Town03 -c 1
+    # Command: python simulation.py -s simulation -t 100 -m Town03 -c 2

@@ -7,6 +7,7 @@ please use cosim_api.py.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import time
 import math
 import random
 import sys
@@ -185,15 +186,15 @@ class ScenarioManager:
 
         self.carla_manager = CarlaManager()
         self.client = self.carla_manager.ensure_running()
-        # self.client = \
-        #     carla.Client('localhost', simulation_config['client_port'])
-        # self.client.set_timeout(60.0)
 
         if xodr_path:
             self.world = load_customized_world(xodr_path, self.client)
         elif town:
             try:
+                sleep_time = 5
+                print(f"Loading map, sleeping for {sleep_time} seconds")
                 self.world = self.client.load_world(town)
+                time.sleep(sleep_time)
             except RuntimeError:
                 print(
                     f"{bcolors.FAIL} %s is not found in your CARLA repo! "
@@ -240,6 +241,7 @@ class ScenarioManager:
         self.cav_world = cav_world
         self.carla_map = self.world.get_map()
         self.apply_ml = apply_ml
+        self.spawn_points = self.carla_map.get_spawn_points()
 
     @staticmethod
     def set_weather(weather_settings):
@@ -300,6 +302,8 @@ class ScenarioManager:
             self.world.get_blueprint_library().find(default_model)
         single_cav_list = []
 
+        spawn_points = random.sample(self.spawn_points,
+                                     len(self.scenario_params['scenario']['single_cav_list']))
         for i, cav_config in enumerate(
                 self.scenario_params['scenario']['single_cav_list']):
             # in case the cav wants to join a platoon later
@@ -310,22 +314,9 @@ class ScenarioManager:
                                          cav_config)
             # if the spawn position is a single scalar, we need to use map
             # helper to transfer to spawn transform
-            if 'spawn_special' not in cav_config:
-                spawn_transform = carla.Transform(
-                    carla.Location(
-                        x=cav_config['spawn_position'][0],
-                        y=cav_config['spawn_position'][1],
-                        z=cav_config['spawn_position'][2]),
-                    carla.Rotation(
-                        pitch=cav_config['spawn_position'][5],
-                        yaw=cav_config['spawn_position'][4],
-                        roll=cav_config['spawn_position'][3]))
-            else:
-                spawn_transform = map_helper(self.carla_version,
-                                             *cav_config['spawn_special'])
 
             cav_vehicle_bp.set_attribute('color', '0, 0, 255')
-            vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
+            vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_points[i])
 
             # create vehicle manager for each cav
             vehicle_manager = VehicleManager(
@@ -338,9 +329,10 @@ class ScenarioManager:
 
             vehicle_manager.v2x_manager.set_platoon(None)
 
-            destination = carla.Location(x=cav_config['destination'][0],
-                                         y=cav_config['destination'][1],
-                                         z=cav_config['destination'][2])
+            destination = random.choice(self.spawn_points)
+            destination = carla.Location(x=destination.location.x,
+                                         y=destination.location.y,
+                                         z=destination.location.z)
             vehicle_manager.update_info()
             vehicle_manager.set_destination(
                 vehicle_manager.vehicle.get_location(),
@@ -365,7 +357,7 @@ class ScenarioManager:
         Returns
         -------
         single_cav_list : list
-            A list contains the singla CAV derived from the ego vehicle.
+            A list contains the single CAV derived from the ego vehicle.
         """
         single_cav_params = self.scenario_params['scenario']['single_cav_list']
         if len(single_cav_params) != 1:

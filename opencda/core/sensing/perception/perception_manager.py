@@ -79,7 +79,7 @@ class CameraSensor:
             self.sensor = world.spawn_actor(blueprint, spawn_point)
 
         self.image = None
-        self.timstamp = None
+        self.timestamp = None
         self.frame = 0
         weak_self = weakref.ref(self)
         self.sensor.listen(

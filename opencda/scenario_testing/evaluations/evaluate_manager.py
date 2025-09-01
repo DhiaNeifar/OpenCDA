@@ -44,9 +44,10 @@ class EvaluationManager(object):
 
         current_path = os.path.dirname(os.path.realpath(__file__))
 
+        # original_path = '../../../evaluation_outputs'
+        original_path = r"D:\opv2v_data_dumping\train"
         self.eval_save_path = os.path.join(
-            current_path, '../../../evaluation_outputs',
-            script_name + '_' + current_time)
+            current_path, original_path, current_time)
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
@@ -83,8 +84,7 @@ class EvaluationManager(object):
                 route_dist += prev.location.distance(cur.location)
         return route_dist
 
-    @staticmethod
-    def plot_3d(timestamp, acc_x_axis, acc_y_axis, acc_z_axis, acc_magnitude,
+    def plot_3d(self, timestamp, acc_x_axis, acc_y_axis, acc_z_axis, acc_magnitude,
                 gyro_x_axis, gyro_y_axis, gyro_z_axis, gyro_magnitude):
         fig, axes = plt.subplots(nrows=2, ncols=4)
         ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8 = axes.flatten()
@@ -116,20 +116,21 @@ class EvaluationManager(object):
             axis.legend()
         fig.suptitle('Plots with Accelerometer and Gyroscope')
         plt.subplots_adjust(wspace=0.5)
-        plt.show(block=False)
+        # plt.show(block=False)
+        figure_name = "Accelerometer_and_Gyroscope_Time_series.png"
+        plt.savefig(os.path.join(self.eval_save_path, figure_name))
 
-    @staticmethod
-    def plot_2d(x_axis, y_axis, x_label, y_label, legend_name, title_name):
+    def plot_2d(self, x_axis, y_axis, x_label, y_label, legend_name, title_name):
         fig, ax = plt.subplots()
         ax.plot(x_axis, y_axis, label=legend_name, marker='o', markersize=4)
         ax.set_title(title_name)
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
         ax.legend()
-        plt.show(block=False)
+        # plt.show(block=False)
+        plt.savefig(os.path.join(self.eval_save_path, title_name + '.png'))
 
-    @staticmethod
-    def plot_hazard_condition(timestamp, collide, off_road, stuck, over_light):
+    def plot_hazard_condition(self, timestamp, collide, off_road, stuck, over_light):
         fig, ax = plt.subplots()
         ax.plot(timestamp, collide, linestyle='None', marker='o', label='Collide')
         ax.plot(timestamp, off_road, linestyle='None', marker='x', label='Off Road')
@@ -138,12 +139,13 @@ class EvaluationManager(object):
         plt.ylim(-0.2, 1.5)
         plt.xlabel("Time")
         plt.ylabel("Event Occurrence")
-        plt.title("Time Series with Event Occurrence")
+        title = "Time Series with Event Occurrence"
+        plt.title(title)
         plt.legend()
-        plt.show(block=False)
+        # plt.show(block=False)
+        plt.savefig(os.path.join(self.eval_save_path, title + '.png'))
 
-    @staticmethod
-    def plot_routes(real_route_transforms, planned_route_transforms):
+    def plot_routes(self, real_route_transforms, planned_route_transforms):
         fig, ax = plt.subplots()
         real_x_coords = [t.location.x for t in real_route_transforms]
         real_y_coords = [t.location.y for t in real_route_transforms]
@@ -153,11 +155,13 @@ class EvaluationManager(object):
         ax.scatter(planned_y_coords, planned_x_coords, marker='x', color='r', s=50, label='Planned Route Points')
         ax.set_xlabel('Y (meters)')
         ax.set_ylabel('X (meters)')
-        ax.set_title('Actual Route / Intial Planned Route')
+        title = 'Actual Route - Initial Planned Route'
+        ax.set_title(title)
         ax.legend()
         ax.grid()
         plt.gca().set_aspect("equal", adjustable="box")
-        plt.show()
+        # plt.show()
+        plt.savefig(os.path.join(self.eval_save_path, title + '.png'))
 
     def planning_eval(self, log_file):
         """

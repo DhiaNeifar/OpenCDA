@@ -54,7 +54,7 @@ class DataDumper(object):
                  perception_manager,
                  vehicle_id,
                  save_time):
-        original_path = "../../../data_dumping"
+        # original_path = "../../../data_dumping"
         original_path = r"D:\opv2v_data_dumping\train"
         self.rgb_camera = perception_manager.rgb_camera
         self.lidar = perception_manager.lidar

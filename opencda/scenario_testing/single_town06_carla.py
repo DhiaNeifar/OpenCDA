@@ -67,5 +67,4 @@ def run_scenario(opt, scenario_params):
         scenario_manager.destroy_actors()
         scenario_manager.close()
 
-
         eval_manager.evaluate()

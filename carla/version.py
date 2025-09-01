@@ -25,17 +25,3 @@ def check_version(value: str) -> str:
             f"but got {value}"
         )
     return value
-
-def verify_runtime(version_str: str):
-    """
-    Verify at runtime (outside argparse).
-    Example: verify_runtime(carla.__version__)
-    """
-    nums = parse_version(version_str)
-    if nums < MIN_VERSION or nums > MAX_VERSION:
-        raise RuntimeError(
-            f"CARLA version must be between "
-            f"{'.'.join(map(str, MIN_VERSION))} and {'.'.join(map(str, MAX_VERSION))}, "
-            f"but got {version_str}"
-        )
-    return True

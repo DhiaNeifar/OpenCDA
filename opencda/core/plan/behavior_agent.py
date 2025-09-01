@@ -90,6 +90,7 @@ class BehaviorAgent(object):
         self._ego_pos = None
         self._ego_speed = 0.0
         self._map = carla_map
+        self.spawn_points = self._map.get_spawn_points()
 
         # speed related, check yaml file to see the meaning
         self.max_speed = config_yaml['max_speed']
@@ -315,13 +316,12 @@ class BehaviorAgent(object):
          computes another path to reach it.
 
         """
-        spawn_points = self._map.get_spawn_points()
         print("Target almost reached, setting new destination...")
-        random.shuffle(spawn_points)
+        random.shuffle(self.spawn_points)
         new_start = \
             self._local_planner.waypoints_queue[-1][0].transform.location
-        destination = spawn_points[0].location if \
-            spawn_points[0].location != new_start else spawn_points[1].location
+        destination = self.spawn_points[0].location if \
+            self.spawn_points[0].location != new_start else self.spawn_points[1].location
         print("New destination: " + str(destination))
 
         self.set_destination(new_start, destination)

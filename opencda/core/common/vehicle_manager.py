@@ -83,36 +83,36 @@ class VehicleManager(object):
             current_time='',
             data_dumping=True):
 
-        # an unique uuid for this vehicle
+        # A unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
         self.vehicle = vehicle
         self.carla_map = carla_map
 
-        # retrieve the configure for different modules
+        # Retrieve the configure for different modules
         sensing_config = config_yaml['sensing']
         map_config = config_yaml['map_manager']
         behavior_config = config_yaml['behavior']
         control_config = config_yaml['controller']
         v2x_config = config_yaml['v2x']
 
-        # v2x module
+        # V2X module
         self.v2x_manager = V2XManager(cav_world, v2x_config, self.vid)
-        # localization module
+        # Localization module
         self.localizer = LocalizationManager(
             vehicle, sensing_config['localization'], carla_map)
-        # perception module
+        # Perception module
         self.perception_manager = PerceptionManager(
             vehicle, sensing_config['perception'], cav_world,
             data_dumping)
-        # map manager
+        # Map manager
         self.map_manager = MapManager(vehicle,
                                       carla_map,
                                       map_config)
-        # safety manager
+        # Safety manager
         self.safety_manager = SafetyManager(cav_world=cav_world,
                                             vehicle=vehicle,
                                             params=config_yaml['safety_manager'])
-        # behavior agent
+        # Behavior agent
         self.agent = None
         if 'platooning' in application:
             platoon_config = config_yaml['platoon']

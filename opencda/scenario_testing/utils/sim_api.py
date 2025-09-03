@@ -737,7 +737,7 @@ class ScenarioManager:
 
     def spawn_pedestrians(self, num_pedestrians, bg_list):
         """
-        Spawn pedestrians with AI controllers.
+        Spawn pedestrians with AI controllers using batch operations.
 
         Parameters
         ----------
@@ -752,33 +752,111 @@ class ScenarioManager:
         bg_list : list
             Updated list including pedestrians + controllers.
         """
+        if num_pedestrians <= 0:
+            return bg_list
+
         blueprint_library = self.world.get_blueprint_library()
         walker_bps = blueprint_library.filter("walker.pedestrian.*")
         controller_bp = blueprint_library.find("controller.ai.walker")
 
+        # Import CARLA command classes
+        SpawnActor = carla.command.SpawnActor
+
+        # Generate spawn points
         spawn_points = []
         for i in range(num_pedestrians):
             loc = self.world.get_random_location_from_navigation()
             if loc is not None:
                 spawn_points.append(carla.Transform(loc))
 
-        # Spawn walkers
-        walkers = []
-        for sp in spawn_points:
-            walker_bp = random.choice(walker_bps)
-            walker_bp.set_attribute("is_invincible", "false")
-            walker = self.world.try_spawn_actor(walker_bp, sp)
-            if walker:
-                walkers.append(walker)
-                bg_list.append(walker)
+        print(f"Found {len(spawn_points)} valid spawn points for pedestrians")
 
-        # Spawn controllers and set behavior
-        for walker in walkers:
-            controller = self.world.spawn_actor(controller_bp, carla.Transform(), attach_to=walker)
-            controller.start()
-            controller.go_to_location(self.world.get_random_location_from_navigation())
-            controller.set_max_speed(1.4 + random.random())  # ~1.4-2.4 m/s
-            bg_list.append(controller)
+        # 1. Spawn walkers using batch operations
+        batch = []
+        walker_speeds = []
+
+        for spawn_point in spawn_points:
+            walker_bp = random.choice(walker_bps)
+
+            # Configure walker attributes
+            if walker_bp.has_attribute('is_invincible'):
+                walker_bp.set_attribute('is_invincible', 'false')
+
+            # Set walker speed
+            if walker_bp.has_attribute('speed'):
+                # Use walking speed (index 1) - you can change this logic
+                speed = walker_bp.get_attribute('speed').recommended_values[1]
+                walker_speeds.append(float(speed))
+            else:
+                walker_speeds.append(1.4)  # default walking speed
+
+            batch.append(SpawnActor(walker_bp, spawn_point))
+
+        # Execute batch spawn for walkers
+        walker_results = self.client.apply_batch_sync(batch, True)
+
+        # Collect successfully spawned walkers
+        walker_ids = []
+        final_speeds = []
+
+        for i, result in enumerate(walker_results):
+            if result.error:
+                print(f"Failed to spawn walker: {result.error}")
+            else:
+                walker_ids.append(result.actor_id)
+                final_speeds.append(walker_speeds[i])
+                bg_list.append(result.actor_id)  # Add walker ID to bg_list
+
+        print(f"Successfully spawned {len(walker_ids)} walkers")
+
+        # 2. Spawn controllers using batch operations
+        batch = []
+        for walker_id in walker_ids:
+            batch.append(SpawnActor(controller_bp, carla.Transform(), walker_id))
+
+        # Execute batch spawn for controllers
+        controller_results = self.client.apply_batch_sync(batch, True)
+
+        # Collect controller IDs
+        controller_ids = []
+        for i, result in enumerate(controller_results):
+            if result.error:
+                print(f"Failed to spawn controller: {result.error}")
+            else:
+                controller_ids.append(result.actor_id)
+                bg_list.append(result.actor_id)  # Add controller ID to bg_list
+
+        print(f"Successfully spawned {len(controller_ids)} controllers")
+
+        # 3. Wait for tick to ensure all actors are ready
+        try:
+            self.world.tick()
+        except:
+            self.world.wait_for_tick()
+
+        # 4. Configure controller behavior
+        all_actors = self.world.get_actors(controller_ids)
+
+        for i, controller in enumerate(all_actors):
+            try:
+                # Start the controller
+                controller.start()
+
+                # Set destination
+                destination = self.world.get_random_location_from_navigation()
+                if destination:
+                    controller.go_to_location(destination)
+
+                # Set speed (use index to get corresponding speed)
+                if i < len(final_speeds):
+                    controller.set_max_speed(final_speeds[i])
+                else:
+                    controller.set_max_speed(1.4)  # fallback speed
+
+            except Exception as e:
+                print(f"Error configuring controller {i}: {e}")
+
+        print(f"Configured {len(all_actors)} pedestrian controllers")
 
         return bg_list
 

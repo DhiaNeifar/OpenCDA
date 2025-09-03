@@ -43,8 +43,7 @@ def arg_parse():
     parser.add_argument("-c", "--number_cavs",
                         type=lambda v: int(v) if int(v) > 0 else
                         (_ for _ in ()).throw(argparse.ArgumentTypeError(f"{v} must be > 0")),
-                        default=3, help="Specify the number of CAVs in the simulation (must be > 1)."
-    )
+                        default=3, help="Specify the number of CAVs in the simulation (must be > 1).")
     parser.add_argument('-n', '--number_vehicles', type=int, default=50,
                         help='Specify the number of vehicles (not connected) in the simulation.')
     parser.add_argument('-p', '--number_pedestrians', type=int, default=10,
@@ -116,10 +115,10 @@ def run_scenario(opt, scenario_params):
                 start_recorder(f'{opt.test_scenario}.log', True)
 
         single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'])
+            scenario_manager.create_vehicle_manager(application=['single'], data_dump=False)
 
         # create background traffic in carla
-        traffic_manager, bg_veh_list = \
+        traffic_manager, bg_list = \
             scenario_manager.create_traffic_carla()
 
         # create evaluation manager
@@ -136,13 +135,8 @@ def run_scenario(opt, scenario_params):
             print(f"{number_ticks + 1} / {opt.number_ticks}", end='\r')
             scenario_manager.tick()
             transform = single_cav_list[0].vehicle.get_transform()
-            spectator.set_transform(carla.Transform(
-                transform.location +
-                carla.Location(
-                    z=50),
-                carla.Rotation(
-                    pitch=-
-                    90)))
+            spectator.set_transform(carla.Transform(transform.location +
+                                                    carla.Location(z=50), carla.Rotation(pitch=-90)))
 
             for i, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
@@ -166,4 +160,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print(' - Exited by user.')
 
-    # Command: python simulation.py -s simulation -t 100 -m Town03 -c 2
+    # Command: python simulation.py -s simulation -t 100 -m Town10HD -c 1 -n 0 -p 30
+    # Town03 would not work when pedestrains involved

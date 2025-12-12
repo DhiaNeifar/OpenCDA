@@ -173,7 +173,8 @@ class ScenarioManager:
                  carla_version,
                  xodr_path=None,
                  town=None,
-                 cav_world=None):
+                 cav_world=None,
+                 save_path=None):
         self.scenario_params = scenario_params
         self.carla_version = carla_version
 
@@ -242,6 +243,8 @@ class ScenarioManager:
         self.carla_map = self.world.get_map()
         self.apply_ml = apply_ml
         self.spawn_points = self.carla_map.get_spawn_points()
+        self.save_path = save_path
+        self.vehicles, self.pedestrians = None, None
 
     @staticmethod
     def set_weather(weather_settings):
@@ -286,6 +289,44 @@ class ScenarioManager:
         return vehicle
 
     def create_vehicle_manager(self, application,
+                               map_helper=None,
+                               data_dump=True):
+        cav_list = []
+        single_cav_list = random.sample(self.vehicles, len(self.scenario_params['scenario']['single_cav_list']))
+        for i, cav_config in enumerate(
+                self.scenario_params['scenario']['single_cav_list']):
+            # in case the cav wants to join a platoon later
+            # it will be empty dictionary for single cav application
+            platoon_base = OmegaConf.create({'platoon': self.scenario_params.get('platoon_base', {})})
+            cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'],
+                                         platoon_base,
+                                         cav_config)
+            # if the spawn position is a single scalar, we need to use map
+            # helper to transfer to spawn transform
+
+            # create vehicle manager for each cav
+            vehicle = single_cav_list[i]
+            vehicle_manager = VehicleManager(
+                vehicle, cav_config, application,
+                self.carla_map, self.cav_world,
+                current_time=self.scenario_params['current_time'],
+                data_dumping=data_dump,
+                save_path=self.save_path)
+
+            self.world.tick()
+
+            vehicle_manager.v2x_manager.set_platoon(None)
+
+
+            vehicle_manager.update_info()
+
+
+            cav_list.append(vehicle_manager)
+
+        return cav_list
+
+
+    def create_vehicle_manager_old(self, application,
                                map_helper=None,
                                data_dump=True):
         """
@@ -336,7 +377,8 @@ class ScenarioManager:
                 vehicle, cav_config, application,
                 self.carla_map, self.cav_world,
                 current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump)
+                data_dumping=data_dump,
+                save_path=self.save_path)
 
             self.world.tick()
 
@@ -383,7 +425,7 @@ class ScenarioManager:
                                      platoon_base,
                                      cav_config)
         vehicle_manager = VehicleManager(
-            vehicle, cav_config, ['single'], self.carla_map, self.cav_world)
+            vehicle, cav_config, ['single'], self.carla_map, self.cav_world, save_path=self.save_path)
 
         self.world.tick()
 
@@ -465,7 +507,7 @@ class ScenarioManager:
                     vehicle, cav, ['platooning'],
                     self.carla_map, self.cav_world,
                     current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump)
+                    data_dumping=data_dump, save_path=self.save_path)
 
                 # add the vehicle manager to platoon
                 if j == 0:
@@ -508,7 +550,7 @@ class ScenarioManager:
                                      self.carla_map,
                                      self.cav_world,
                                      self.scenario_params['current_time'],
-                                     data_dump)
+                                     data_dump, save_path=self.save_path)
 
             rsu_list.append(rsu_manager)
 
@@ -718,22 +760,24 @@ class ScenarioManager:
         tm.global_percentage_speed_difference(
             traffic_config['global_speed_perc'])
 
-        bg_list = []
+        vehicles, pedestrians = [], []
 
         # Vehicles
         if isinstance(traffic_config['vehicle_list'], int) or \
                 isinstance(traffic_config['vehicle_list'], ListConfig):
-            bg_list = self.spawn_vehicles_by_list(tm, traffic_config, bg_list)
+            vehicles = self.spawn_vehicles_by_list(tm, traffic_config, vehicles)
         else:
-            bg_list = self.spawn_vehicle_by_range(tm, traffic_config, bg_list)
+            vehicles = self.spawn_vehicle_by_range(tm, traffic_config, vehicles)
 
-        bg_list = self.spawn_pedestrians(traffic_config['pedestrian_list'], bg_list)
+        pedestrians = self.spawn_pedestrians(traffic_config['pedestrian_list'], pedestrians)
         # # Pedestrians
         # if 'pedestrian_list' in traffic_config and traffic_config['pedestrian_list'] > 0:
         #
 
         print('CARLA traffic flow generated.')
-        return tm, bg_list
+        self.vehicles = vehicles
+        self.pedestrians = pedestrians
+        return tm
 
     def spawn_pedestrians(self, num_pedestrians, bg_list):
         """

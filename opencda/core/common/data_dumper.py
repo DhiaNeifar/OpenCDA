@@ -53,9 +53,11 @@ class DataDumper(object):
     def __init__(self,
                  perception_manager,
                  vehicle_id,
-                 save_time):
+                 save_time,
+                 save_path=r"D:\dataset\train"):
         # original_path = "../../../data_dumping"
-        original_path = r"D:\opv2v_data_dumping\train"
+
+        self.save_path = save_path
         self.rgb_camera = perception_manager.rgb_camera
         self.lidar = perception_manager.lidar
 
@@ -65,7 +67,7 @@ class DataDumper(object):
         current_path = os.path.dirname(os.path.realpath(__file__))
         self.save_parent_folder = \
             os.path.join(current_path,
-                         original_path,
+                         self.save_path,
                          save_time,
                          str(self.vehicle_id))
 
@@ -102,14 +104,14 @@ class DataDumper(object):
             return
 
         if self.rgb_camera:
-            self.save_rgb_image(perception_manager)
+            self.save_rgb_image()
         if self.lidar:
             self.save_lidar_points()
         self.save_yaml_file(perception_manager,
                             localization_manager,
                             behavior_agent)
 
-    def save_rgb_image(self, perception_manager):
+    def save_rgb_image(self):
         """
         Save camera rgb images to disk.
         """
@@ -118,7 +120,6 @@ class DataDumper(object):
             image = camera.image
 
             image_name = '%06d' % self.count + '_' + 'camera%d' % i + '.png'
-            image = perception_manager.visualize_3d_bbx_front_camera(perception_manager.objects, image, i)
             cv2.imwrite(os.path.join(self.save_parent_folder, image_name),
                         image)
 

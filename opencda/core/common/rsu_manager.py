@@ -56,7 +56,8 @@ class RSUManager(object):
             carla_map,
             cav_world,
             current_time='',
-            data_dumping=True):
+            data_dumping=True,
+            save_path=None):
 
         self.rid = config_yaml['id']
         # The id of rsu is always a negative int
@@ -86,10 +87,12 @@ class RSUManager(object):
                                                     carla_world=carla_world,
                                                     data_dump=data_dumping,
                                                     infra_id=self.rid)
+        self.save_path = save_path
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager,
                                           self.rid,
-                                          save_time=current_time)
+                                          save_time=current_time,
+                                          save_path=self.save_path)
         else:
             self.data_dumper = None
 

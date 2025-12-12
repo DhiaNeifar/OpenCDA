@@ -312,19 +312,37 @@ class BehaviorAgent(object):
     def reroute(self):
         """
         This method implements re-routing for vehicles
-        approaching its destination.  It finds a new target and
-         computes another path to reach it.
-
+        approaching its destination. It finds a new target and
+        computes another path to reach it.
         """
         print("Target almost reached, setting new destination...")
+
+        # Current ego position as the new route start
+        new_start = self.vehicle.get_transform().location
+
+        # Shuffle spawn points to randomize choice
         random.shuffle(self.spawn_points)
-        new_start = \
-            self._local_planner.waypoints_queue[-1][0].transform.location
-        destination = self.spawn_points[0].location if \
-            self.spawn_points[0].location != new_start else self.spawn_points[1].location
+
+        destination = None
+        # Pick the first spawn point that is at least 10 meters away
+        for sp in self.spawn_points:
+            sp_loc = sp.location
+            if sp_loc.distance(new_start) >= 10.0:
+                destination = sp_loc
+                break
+
+        # Fallback: if all spawn points are too close (very unlikely),
+        # just use the first one
+        if destination is None:
+            destination = self.spawn_points[0].location
+
         print("New destination: " + str(destination))
 
-        self.set_destination(new_start, destination)
+        self.set_destination(new_start,
+                             destination,
+                             clean=True,
+                             end_reset=True,
+                             clean_history=True)
 
     def _trace_route(self, start_waypoint, end_waypoint):
         """
@@ -771,7 +789,7 @@ class BehaviorAgent(object):
         # retrieve ego location
         ego_vehicle_loc = self._ego_pos.location
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
-        waipoint_buffer = self.get_local_planner().get_waypoint_buffer()
+        waypoint_buffer = self.get_local_planner().get_waypoint_buffer()
         # ttc reset to 1000 at the beginning
         self.ttc = 1000
         # when overtake_counter > 0, another overtake/lane change is forbidden
@@ -783,7 +801,7 @@ class BehaviorAgent(object):
             self.destination_push_flag -= 1
 
         # use traffic light to detect intersection
-        is_intersection = self.is_intersection(self.objects, waipoint_buffer)
+        is_intersection = self.is_intersection(self.objects, waypoint_buffer)
 
         # 0. Simulation ends condition
         if self.is_close_to_destination():

@@ -22,10 +22,6 @@ from omegaconf import DictConfig
 from .config_yaml.conf import load_cfg  # loads CARLA/config_yaml/default.yaml (+ optional overrides)
 
 
-DEFAULT_PORT = 2000
-DEFAULT_TIMEOUT = 20.0
-
-
 class CarlaManager:
     """
     CARLA server lifecycle manager using YAML (OmegaConf) configuration.
@@ -158,7 +154,7 @@ class CarlaManager:
                 # If the process we spawned died, relaunch once:
                 if self.proc and self.proc.poll() is not None:
                     self.launch()
-                time.sleep(1.0)
+                time.sleep(10.0)
 
         raise RuntimeError(
             f"Could not connect to CARLA at {self.cfg.host}:{self.cfg.port} "

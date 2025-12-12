@@ -48,6 +48,8 @@ def arg_parse():
                         help='Specify the number of vehicles (not connected) in the simulation.')
     parser.add_argument('-p', '--number_pedestrians', type=int, default=10,
                         help='Specify the number of pedestrians in the simulation.')
+    parser.add_argument('-k', '--save_path', type=str, default=r"D:\dataset\train",
+                        help='Specify the save path of the simulation.')
     parser.add_argument('--apply_ml',
                         action='store_true', default=False,
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
@@ -108,31 +110,28 @@ def run_scenario(opt, scenario_params):
                                                    opt.apply_ml,
                                                    opt.version,
                                                    town=opt.map,
-                                                   cav_world=cav_world)
+                                                   cav_world=cav_world,
+                                                   save_path=opt.save_path)
 
         if opt.record:
             scenario_manager.client. \
                 start_recorder(f'{opt.test_scenario}.log', True)
 
-        single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'], data_dump=False)
-
         # create background traffic in carla
-        traffic_manager, bg_list = \
-            scenario_manager.create_traffic_carla()
+        traffic_manager = scenario_manager.create_traffic_carla()
+
+        single_cav_list = \
+            scenario_manager.create_vehicle_manager(application=['single'], data_dump=True)
 
         # create evaluation manager
-        eval_manager = \
-            EvaluationManager(scenario_manager.cav_world,
-                              script_name=f'{opt.test_scenario}',
-                              current_time=scenario_params['current_time'])
+        # eval_manager = EvaluationManager(scenario_manager.cav_world, script_name=f'{opt.test_scenario}', current_time=scenario_params['current_time'])
 
         spectator = scenario_manager.world.get_spectator()
 
         # run steps
         number_ticks = 0
         while number_ticks < opt.number_ticks:
-            print(f"{number_ticks + 1} / {opt.number_ticks}", end='\r')
+            print(f"{number_ticks + 1} / {opt.number_ticks}")
             scenario_manager.tick()
             transform = single_cav_list[0].vehicle.get_transform()
             spectator.set_transform(carla.Transform(transform.location +
@@ -140,18 +139,17 @@ def run_scenario(opt, scenario_params):
 
             for i, single_cav in enumerate(single_cav_list):
                 single_cav.update_info()
-                control = single_cav.run_step()
-                single_cav.vehicle.apply_control(control)
+                single_cav.run_step()
+                # single_cav.vehicle.apply_control(control)
             number_ticks += 1
     finally:
         if opt.record:
             scenario_manager.client.stop_recorder()
 
-        scenario_manager.destroy_actors()
+
+        # eval_manager.evaluate()
         scenario_manager.close()
-
-        eval_manager.evaluate()
-
+        scenario_manager.destroy_actors()
 
 
 if __name__ == '__main__':
@@ -160,5 +158,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print(' - Exited by user.')
 
-    # Command: python simulation.py -s simulation -t 100 -m Town10HD -c 1 -n 0 -p 30
-    # Town03 would not work when pedestrains involved
+    # Command: python simulation.py -s simulation -t 1000 -m Town10HD -c 1 -n 10 -p 30
+    # Town03 would not work when pedestrians involved
